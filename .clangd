@@ -1,0 +1,3 @@
+# Editor-only: strip ESP32 compiler flags that clangd doesn't understand
+CompileFlags:
+  Remove: [-mfix-esp32-psram-cache-issue, -mlongcalls, -fstrict-volatile-bitfields, -fno-tree-switch-conversion, -mtext-section-literals, -mdisable-hardware-atomics]
