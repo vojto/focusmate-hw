@@ -46,3 +46,7 @@ uv run --with pyserial --with pillow python tools/screenshot.py p tools/out/pie.
 The first argument is a string of commands sent before the capture: `p` pie, `q` pie in its last minute, `c` countdown, `w` a session starting in 63 seconds (to hear the chimes), `n` clock with a later session, `e` nothing booked, `-` capture only. A test session lasts until the next real fetch, at most a minute.
 
 Flash the normal build again when you're done.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
