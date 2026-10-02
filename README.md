@@ -20,7 +20,7 @@ cp src/secrets.example.h src/secrets.h
 
 Fill in your 2.4 GHz Wi-Fi name and password, and your Focusmate API key (Focusmate settings page). `src/secrets.h` is ignored by git.
 
-The time zone is set to Europe/Bratislava in `TIME_ZONE` at the top of `src/main.cpp`; change it to your own [POSIX time zone string](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv).
+The time zone is set to Europe/Bratislava in `TIME_ZONE` at the top of `src/network.cpp`; change it to your own [POSIX time zone string](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv).
 
 Plug in the Core2 and flash it:
 
@@ -32,6 +32,7 @@ pio run -t upload
 
 - A background task asks `GET /v1/sessions` for the next 24 hours once a minute. A session you book or cancel shows up within a minute.
 - The pie and the countdown run off the device's clock, which is synced from the internet, so they keep going between requests.
+- The screen is at full brightness from 10 minutes before a session until it ends, and dimmed the rest of the time.
 - The device has no sleep mode and is meant to stay on USB power.
 
 ## Screenshots from the device
