@@ -13,8 +13,9 @@ void showClock(time_t now, const Session &next, const char *notice);
 // "Session in" and the time left as minutes:seconds
 void showCountdown(int32_t seconds);
 
-// A pie that starts full and empties clockwise as usedFraction goes from 0 to 1
-void showPie(float usedFraction);
+// A pie that starts full and empties clockwise a minute at a time, inside a
+// ring with a tick per minute
+void showPie(int usedMinutes, int totalMinutes);
 
 // 0-255
 void setScreenBrightness(int brightness);

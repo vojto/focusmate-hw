@@ -4,11 +4,11 @@ A desk display for [Focusmate](https://www.focusmate.com) sessions on an M5Stack
 
 ![The three screens, captured from the device](docs/screens.png)
 
-- **In session:** a pie that starts full and empties clockwise until the session ends.
+- **In session:** a pie that starts full and empties clockwise a minute at a time, inside a ring with a tick per minute. The tick of the running minute is red.
 - **Session starts within an hour:** a countdown.
 - **Otherwise:** the time, the date and when the next session starts.
 
-The speaker plays two notes one minute before a session and three notes when it starts.
+The speaker plays two notes one minute before a session and three notes when it starts, and ticks quietly every second while it runs.
 
 ## Setup
 
@@ -32,6 +32,7 @@ pio run -t upload
 
 - A background task asks `GET /v1/sessions` for the next 24 hours once a minute. A session you book or cancel shows up within a minute.
 - The pie and the countdown run off the device's clock, which is synced from the internet, so they keep going between requests.
+- The pie and its ticks are drawn at twice their size into an off-screen canvas in the Core2's PSRAM and shrunk onto the screen, which smooths their edges.
 - The screen is at full brightness from 10 minutes before a session until it ends, and dimmed the rest of the time.
 - The device has no sleep mode and is meant to stay on USB power.
 

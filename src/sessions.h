@@ -14,8 +14,9 @@ struct Session {
   bool isBooked() const { return seconds > 0; }
   bool isRunning(time_t now) const { return now >= start && now < start + seconds; }
   bool isStartingWithin(int32_t limit, time_t now) const { return now < start && start - now <= limit; }
-  // 0 at the start, 1 at the end
-  float usedFraction(time_t now) const { return (float)(now - start) / seconds; }
+  int32_t minutes() const { return seconds / 60; }
+  // Whole minutes since the start
+  int32_t usedMinutes(time_t now) const { return (now - start) / 60; }
 };
 
 void startFetchingSessions();
