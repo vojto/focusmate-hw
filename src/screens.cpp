@@ -29,6 +29,20 @@ const uint32_t COUNTDOWN_GREEN = 0x5DCAA5, NOTICE_ORANGE = 0xEF9F27;
 #define PIE_SCALE 2             // how many times too big the pie is drawn; a redraw takes ~0.6s at 2, ~1s at 3
 #define PIE_CANVAS (240 * PIE_SCALE)
 
+// The time left in the bottom left corner and the session's position in its
+// block in the bottom right. The box is what gets cleared in each corner; it
+// stays clear of the ticks.
+#define CORNER_LEFT 8
+#define CORNER_RIGHT 312
+#define CORNER_BASELINE 231
+#define CORNER_BOX_WIDTH 68
+#define CORNER_BOX_HEIGHT 28
+#define SLASH_WIDTH 9           // a fraction slash leans further than a normal one
+#define SLASH_RISE 19           // how far above the baseline it reaches
+#define SLASH_DROP 3            // and how far below
+#define SLASH_GAP 2             // between the slash and the digits
+#define SLASH_THICKNESS 0.7f    // half the line's width
+
 // A centered line of text. Lines of one screen each need their own slot,
 // which is where the text now on the display is remembered.
 struct TextLine {
@@ -52,6 +66,9 @@ enum Screen { SCREEN_NONE, SCREEN_CLOCK, SCREEN_COUNTDOWN, SCREEN_PIE };
 static bool enterScreen(Screen screen);
 static void drawLine(const TextLine &line, const String &text);
 static String formatLocalTime(time_t when, const char *format);
+static void drawTimeLeft(int minutes);
+static void drawBlockPosition(BlockPosition block);
+static void startCornerText(int boxLeft, lgfx::textdatum_t datum);
 static void clearPieCanvas();
 static void drawSlices(float usedDegrees);
 static void drawTick(float angle, bool isActive, bool isBold);
@@ -82,12 +99,15 @@ void showCountdown(int32_t seconds) {
 
 // The used-up part grows clockwise from 12 o'clock, like on a Time Timer. Its
 // edge always points at the tick of the minute that is running, which is red.
-void showPie(int usedMinutes, int totalMinutes) {
+void showPie(int usedMinutes, int totalMinutes, BlockPosition block) {
   static int shownUsed, shownTotal;
+  static BlockPosition shownBlock;
   bool isFirstDraw = enterScreen(SCREEN_PIE);
-  if (!isFirstDraw && usedMinutes == shownUsed && totalMinutes == shownTotal) return;
+  bool isBlockShown = block.number == shownBlock.number && block.total == shownBlock.total;
+  if (!isFirstDraw && usedMinutes == shownUsed && totalMinutes == shownTotal && isBlockShown) return;
   shownUsed = usedMinutes;
   shownTotal = totalMinutes;
+  shownBlock = block;
 
   float minuteDegrees = 360.0f / totalMinutes;
   clearPieCanvas();
@@ -98,6 +118,9 @@ void showPie(int usedMinutes, int totalMinutes) {
   }
   // Shrinking averages the canvas's pixels, which is what smooths the edges
   pieCanvas.pushRotateZoomWithAA(&M5.Display, CENTER_X, CENTER_Y, 0, 1.0f / PIE_SCALE, 1.0f / PIE_SCALE);
+  // After the pie, whose square canvas reaches into the corners
+  drawTimeLeft(totalMinutes - usedMinutes);
+  drawBlockPosition(block);
 }
 
 void setScreenBrightness(int brightness) {
@@ -137,6 +160,37 @@ static String formatLocalTime(time_t when, const char *format) {
   localtime_r(&when, &local);
   strftime(text, sizeof(text), format, &local);
   return text;
+}
+
+// Hours and minutes: "0:15", "1:15"
+static void drawTimeLeft(int minutes) {
+  char text[8];
+  snprintf(text, sizeof(text), "%d:%02d", minutes / 60, minutes % 60);
+  startCornerText(CORNER_LEFT, baseline_left);
+  M5.Display.drawString(text, CORNER_LEFT, CORNER_BASELINE);
+}
+
+// "3⁄4", right-aligned and drawn from the right: the total, the slash, the number.
+// A session on its own gets nothing.
+static void drawBlockPosition(BlockPosition block) {
+  startCornerText(CORNER_RIGHT - CORNER_BOX_WIDTH, baseline_right);
+  if (block.total < 2) return;
+
+  // The fonts have no fraction slash, so it is a line
+  int slashRight = CORNER_RIGHT - M5.Display.drawString(String(block.total), CORNER_RIGHT, CORNER_BASELINE) - SLASH_GAP;
+  int slashLeft = slashRight - SLASH_WIDTH;
+  M5.Display.drawWideLine(slashLeft, CORNER_BASELINE + SLASH_DROP, slashRight, CORNER_BASELINE - SLASH_RISE, SLASH_THICKNESS, TEXT_GRAY);
+  M5.Display.drawString(String(block.number), slashLeft - SLASH_GAP, CORNER_BASELINE);
+}
+
+// Clears a corner's box and sets up its text
+static void startCornerText(int boxLeft, lgfx::textdatum_t datum) {
+  M5.Display.fillRect(boxLeft, M5.Display.height() - CORNER_BOX_HEIGHT, CORNER_BOX_WIDTH, CORNER_BOX_HEIGHT, BACKGROUND);
+  M5.Display.setFont(&fonts::FreeSans12pt7b);
+  M5.Display.setTextSize(1);
+  M5.Display.setTextColor(TEXT_GRAY, BACKGROUND);
+  M5.Display.setTextDatum(datum);
+  M5.Display.setTextPadding(0);
 }
 
 // MARK: Pie canvas

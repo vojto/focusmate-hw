@@ -14,6 +14,7 @@
 #define COUNTDOWN_S 3600    // a session starting within this gets the countdown
 #define BRIGHT_S 600        // the screen is bright from this long before a session until it ends
 #define WARNING_S 60        // the first chime plays this long before the start
+#define END_WARNING_S 60    // two descending notes this long before the end
 #define START_CHIME_S 10    // the start chime is skipped once the session is further in than this
 #define BRIGHTNESS 100      // 0-255
 #define DIM_BRIGHTNESS 24
@@ -48,7 +49,7 @@ void loop() {
   // Before the drawing, which takes a while when the pie moves
   playTick(session, now);
 
-  if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes());
+  if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session));
   else if (session.isStartingWithin(COUNTDOWN_S, now)) showCountdown(session.start - now);
   else showClock(now, session, fetchProblem());
 
@@ -58,9 +59,9 @@ void loop() {
   delay(LOOP_MS);
 }
 
-// Two notes a minute before a session and three when it starts, once per session
+// Start chimes and an end warning, each once per session
 static void playChimes(const Session &session, time_t now) {
-  static time_t warnedStart = 0, chimedStart = 0;
+  static time_t warnedStart = 0, chimedStart = 0, warnedEnd = 0;
 
   if (session.isStartingWithin(WARNING_S, now) && warnedStart != session.start) {
     warnedStart = session.start;
@@ -71,6 +72,11 @@ static void playChimes(const Session &session, time_t now) {
   if (hasJustStarted && chimedStart != session.start) {
     chimedStart = session.start;
     playNotes({1047, 1319, 1568});
+  }
+  bool isEndingSoon = session.isRunning(now) && session.start + session.seconds - now <= END_WARNING_S;
+  if (isEndingSoon && warnedEnd != session.start) {
+    warnedEnd = session.start;
+    playNotes({1047, 784});
   }
 }
 

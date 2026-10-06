@@ -8,16 +8,20 @@
 /*
  * Fetches the booked sessions from Focusmate's API once a minute, in a
  * background task so the screen never waits for the network. The list is
- * shared with the main loop under a lock.
+ * shared with the main loop under a lock. It also holds the sessions of the
+ * last half day, so a running session can be counted within its block.
  */
 
 #define SESSIONS_URL "https://api.focusmate.com/v1/sessions"
 #define FETCH_INTERVAL_MS 60000
 #define FETCH_RETRY_MS 10000
 #define LOOKAHEAD_S (24 * 3600)
-#define MAX_SESSIONS 16
+#define LOOKBACK_S (12 * 3600)  // far enough to reach the start of the running block
+#define BLOCK_GAP_S (10 * 60)   // the longest break between back-to-back sessions, after a 50-minute one
+#define MAX_SESSIONS 32
 #define TASK_STACK_BYTES 12288  // enough for the TLS handshake
 
+static bool isBackToBack(const Session &earlier, const Session &later);
 static void fetchTask(void *);
 static bool fetchSessions();
 static bool requestSessions(String &json);
@@ -26,7 +30,7 @@ static String formatIsoTime(time_t when);
 static time_t parseIsoTime(const char *text);
 static time_t utcSeconds(int year, int month, int day, int hour, int minute, int second);
 
-// Written by the fetch task, read by the main loop
+// Written by the fetch task, read by the main loop. Oldest first.
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 static Session sessions[MAX_SESSIONS];
 static int sessionCount = 0;
@@ -48,6 +52,20 @@ Session currentSession(time_t now) {
   return current;
 }
 
+BlockPosition blockPosition(const Session &session) {
+  BlockPosition position = {1, 1};
+  portENTER_CRITICAL(&lock);
+  int index = 0;
+  while (index < sessionCount && sessions[index].start != session.start) index++;
+  if (index < sessionCount) {
+    for (int i = index; i > 0 && isBackToBack(sessions[i - 1], sessions[i]); i--) position.number++;
+    position.total = position.number;
+    for (int i = index; i + 1 < sessionCount && isBackToBack(sessions[i], sessions[i + 1]); i++) position.total++;
+  }
+  portEXIT_CRITICAL(&lock);
+  return position;
+}
+
 const char *fetchProblem() {
   if (!isWifiConnected()) return "No Wi-Fi";
   if (hasFetchFailed) return "Can't reach Focusmate";
@@ -59,6 +77,10 @@ void setSessions(const Session *list, int count) {
   sessionCount = min(count, MAX_SESSIONS);
   for (int i = 0; i < sessionCount; i++) sessions[i] = list[i];
   portEXIT_CRITICAL(&lock);
+}
+
+static bool isBackToBack(const Session &earlier, const Session &later) {
+  return later.start - (earlier.start + earlier.seconds) <= BLOCK_GAP_S;
 }
 
 // MARK: Fetching
@@ -85,10 +107,10 @@ static bool fetchSessions() {
   return true;
 }
 
-// Asks for every session between now and a day from now
+// Asks for every session between half a day ago and a day from now
 static bool requestSessions(String &json) {
   time_t now = time(nullptr);
-  String url = String(SESSIONS_URL) + "?start=" + formatIsoTime(now) + "&end=" + formatIsoTime(now + LOOKAHEAD_S);
+  String url = String(SESSIONS_URL) + "?start=" + formatIsoTime(now - LOOKBACK_S) + "&end=" + formatIsoTime(now + LOOKAHEAD_S);
 
   WiFiClientSecure client;
   client.setInsecure();  // no certificate check

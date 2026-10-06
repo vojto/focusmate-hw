@@ -4,11 +4,11 @@ A desk display for [Focusmate](https://www.focusmate.com) sessions on an M5Stack
 
 ![The three screens, captured from the device](docs/screens.png)
 
-- **In session:** a pie that starts full and empties clockwise a minute at a time, inside a ring with a tick per minute. The tick of the running minute is red.
+- **In session:** a pie that starts full and empties clockwise a minute at a time, inside a ring with a tick per minute. The tick of the running minute is red. The bottom left corner shows the time left, like 0:15. When several sessions are booked back to back, the bottom right shows which one is running, like 3⁄4.
 - **Session starts within an hour:** a countdown.
 - **Otherwise:** the time, the date and when the next session starts.
 
-The speaker plays two notes one minute before a session and three notes when it starts, and ticks quietly every second while it runs.
+The speaker plays two rising notes one minute before a session and three notes when it starts, and ticks quietly every second while it runs. Two descending notes at the same volume sound one minute before it ends.
 
 ## Setup
 
@@ -45,7 +45,7 @@ pio run -e debug -t upload
 uv run --with pyserial --with pillow python tools/screenshot.py p tools/out/pie.png /dev/cu.usbserial-XXXX
 ```
 
-The first argument is a string of commands sent before the capture: `p` pie, `q` pie in its last minute, `c` countdown, `w` a session starting in 63 seconds (to hear the chimes), `n` clock with a later session, `e` nothing booked, `-` capture only. A test session lasts until the next real fetch, at most a minute.
+The first argument is a string of commands sent before the capture: `p` pie, `b` pie as the third of four sessions in a row, `q` pie in its last minute, `c` countdown, `w` a session starting in 63 seconds (to hear the chimes), `n` clock with a later session, `e` nothing booked, `-` capture only. A test session lasts until the next real fetch, at most a minute.
 
 Flash the normal build again when you're done.
 

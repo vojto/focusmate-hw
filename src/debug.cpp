@@ -14,6 +14,7 @@
 #define BAUD 460800
 
 static void fakeSession(int32_t secondsUntilStart, int32_t seconds);
+static void fakeBlock();
 static void sendScreenshot();
 
 void debugSetup() { Serial.begin(BAUD); }
@@ -27,6 +28,7 @@ void debugLoop() {
   }
   if (command == 'p') fakeSession(-18 * 60, 50 * 60);                // pie, 32 of 50 minutes left
   else if (command == 'q') fakeSession(-74 * 60, 75 * 60);           // pie, last minute of 75
+  else if (command == 'b') fakeBlock();                              // pie, third of four sessions in a row
   else if (command == 'c') fakeSession(7 * 60 + 42, 50 * 60);        // countdown
   else if (command == 'w') fakeSession(63, 25 * 60);                 // warning chime in 3s, start in 63s
   else if (command == 'n') fakeSession(2 * 3600 + 23 * 60, 50 * 60); // clock with a next session
@@ -39,6 +41,14 @@ void debugLoop() {
 static void fakeSession(int32_t secondsUntilStart, int32_t seconds) {
   Session session = {time(nullptr) + secondsUntilStart, seconds};
   setSessions(&session, 1);
+}
+
+// Four 50-minute sessions an hour apart, the third 18 minutes in
+static void fakeBlock() {
+  Session block[4];
+  time_t firstStart = time(nullptr) - 18 * 60 - 2 * 3600;
+  for (int i = 0; i < 4; i++) block[i] = {firstStart + i * 3600, 50 * 60};
+  setSessions(block, 4);
 }
 
 // Sends "SHOT <width> <height>" and then the screen as rows of R, G, B bytes
