@@ -2,12 +2,12 @@
 #include "sessions.h"
 
 /*
- * The three screens the main loop chooses from. Each show function can be
+ * The screens the main loop and the dashboards draw. Each show function can be
  * called on every loop: it clears the display when coming from another screen
  * and afterwards redraws only what changed.
  */
 
-// Time, date and when the next session starts, plus a notice on top if there is one
+// A dashboard: time, date and when the next session starts, plus a notice on top if there is one
 void showClock(time_t now, const Session &next, const char *notice);
 
 // "Session in" and the time left as minutes:seconds
@@ -18,6 +18,3 @@ void showCountdown(int32_t seconds);
 // 0:15, and a session in a block of several gets its position in the bottom
 // right, like 3⁄4.
 void showPie(int usedMinutes, int totalMinutes, BlockPosition block);
-
-// 0-255
-void setScreenBrightness(int brightness);

@@ -123,13 +123,6 @@ void showPie(int usedMinutes, int totalMinutes, BlockPosition block) {
   drawBlockPosition(block);
 }
 
-void setScreenBrightness(int brightness) {
-  static int shownBrightness = -1;
-  if (brightness == shownBrightness) return;
-  shownBrightness = brightness;
-  M5.Display.setBrightness(brightness);
-}
-
 // MARK: Drawing helpers
 
 // Clears the display when another screen was showing, and says whether it did
