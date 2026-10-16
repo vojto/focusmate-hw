@@ -51,32 +51,29 @@ const uint32_t STEPS_GREEN = 0x5DCAA5, SLEEP_BLUE = 0x85B7EB, HRV_PINK = 0xED93B
 // on the left and its value next to it, vertically centered.
 #define CELL_WIDTH 160
 #define CELL_HEIGHT 80
-#define CELL_PADDING 14
-#define ICON_GAP 10             // between the icon and the value
+#define CELL_PADDING 12
+#define ICON_GAP 8              // between the icon and the value
 #define TEXT_LEFT (CELL_PADDING + ICON_SIZE + ICON_GAP)
 #define TEXT_BOX_HEIGHT 40      // what gets cleared around a value
 #define UNIT_GAP 3              // between a value and its unit, like "48 ms"
-#define BIG_BASELINE 12         // below a cell's center, about half the cap height
-#define SMALL_BASELINE 8
+#define VALUE_BASELINE 12       // below a cell's center, about half the cap height
 #define NOTICE_HEIGHT 20        // a bar across the top, above the first row's text
 
 // A cell of the dashboard's grid. Each needs its own slot, like a TextLine.
-// Date and time are small, the stats big.
 struct Cell {
   int slot;
   int column;
   int row;
   const uint8_t *icon;
   uint32_t iconColor;
-  bool isSmall;
 };
 
-const Cell DATE_CELL = {0, 0, 0, ICON_CALENDAR, TEXT_GRAY, true};
-const Cell TIME_CELL = {1, 1, 0, ICON_CLOCK, TEXT_GRAY, true};
-const Cell STEPS_CELL = {2, 0, 1, ICON_STEPS, STEPS_GREEN, false};
-const Cell SLEEP_CELL = {3, 1, 1, ICON_SLEEP, SLEEP_BLUE, false};
-const Cell HRV_CELL = {4, 0, 2, ICON_HRV, HRV_PINK, false};
-const Cell RHR_CELL = {5, 1, 2, ICON_RHR, RHR_RED, false};
+const Cell DATE_CELL = {0, 0, 0, ICON_CALENDAR, TEXT_GRAY};
+const Cell TIME_CELL = {1, 1, 0, ICON_CLOCK, TEXT_GRAY};
+const Cell STEPS_CELL = {2, 0, 1, ICON_STEPS, STEPS_GREEN};
+const Cell SLEEP_CELL = {3, 1, 1, ICON_SLEEP, SLEEP_BLUE};
+const Cell HRV_CELL = {4, 0, 2, ICON_HRV, HRV_PINK};
+const Cell RHR_CELL = {5, 1, 2, ICON_RHR, RHR_RED};
 
 // A centered line of text. Lines of one screen each need their own slot,
 // which is where the text now on the display is remembered.
@@ -101,6 +98,7 @@ static void drawCell(const Cell &cell, const String &value, const char *unit = "
 static String formatDate(time_t when);
 static String formatSteps(int steps);
 static String formatSleep(int minutes);
+static String formatNumber(int number);
 static void drawLine(const TextLine &line, const String &text);
 static String formatLocalTime(time_t when, const char *format);
 static void drawTimeLeft(int minutes);
@@ -132,8 +130,8 @@ void showDashboard(time_t now, const Health &health, const char *notice) {
   drawCell(TIME_CELL, isSynced ? formatLocalTime(now, "%H:%M") : "--:--");
   drawCell(STEPS_CELL, formatSteps(health.steps));
   drawCell(SLEEP_CELL, formatSleep(health.sleepMinutes));
-  drawCell(HRV_CELL, String(health.hrvMs), "ms");
-  drawCell(RHR_CELL, String(health.restingHeartRate), "bpm");
+  drawCell(HRV_CELL, formatNumber(health.hrvMs), "ms");
+  drawCell(RHR_CELL, formatNumber(health.restingHeartRate), "bpm");
 }
 
 void showCountdown(int32_t seconds) {
@@ -249,8 +247,8 @@ static void drawCell(const Cell &cell, const String &value, const char *unit) {
   int centerY = cell.row * CELL_HEIGHT + CELL_HEIGHT / 2;
   // Up to the cell's edge, short of the grid line
   M5.Display.fillRect(left, centerY - TEXT_BOX_HEIGHT / 2, CELL_WIDTH - TEXT_LEFT - 2, TEXT_BOX_HEIGHT, BACKGROUND);
-  int baseline = centerY + (cell.isSmall ? SMALL_BASELINE : BIG_BASELINE);
-  M5.Display.setFont(cell.isSmall ? &fonts::FreeSans12pt7b : &fonts::FreeSans18pt7b);
+  int baseline = centerY + VALUE_BASELINE;
+  M5.Display.setFont(&fonts::FreeSans18pt7b);
   M5.Display.setTextSize(1);
   M5.Display.setTextColor(TEXT_WHITE, BACKGROUND);
   M5.Display.setTextDatum(baseline_left);
@@ -271,6 +269,7 @@ static String formatDate(time_t when) {
 
 // "950", "8.4k"
 static String formatSteps(int steps) {
+  if (steps == HEALTH_MISSING) return "--";
   if (steps < 1000) return String(steps);
   char text[12];
   snprintf(text, sizeof(text), "%d.%dk", steps / 1000, steps % 1000 / 100);
@@ -279,10 +278,13 @@ static String formatSteps(int steps) {
 
 // Hours and minutes: "7:24"
 static String formatSleep(int minutes) {
+  if (minutes == HEALTH_MISSING) return "--";
   char text[12];
   snprintf(text, sizeof(text), "%d:%02d", minutes / 60, minutes % 60);
   return text;
 }
+
+static String formatNumber(int number) { return number == HEALTH_MISSING ? "--" : String(number); }
 
 // MARK: Corner labels
 

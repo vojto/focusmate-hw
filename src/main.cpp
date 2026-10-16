@@ -1,5 +1,6 @@
 #include <M5Unified.h>
 #include "debug.h"
+#include "health.h"
 #include "network.h"
 #include "screens.h"
 #include "sessions.h"
@@ -23,9 +24,6 @@
 #define TICK_CHANNEL 0      // the chimes take free channels from 7 down
 #define LOOP_MS 20          // short, so the ticks land evenly
 
-// Made up until the real health data is hooked up
-const Health FAKE_HEALTH = {8412, 7 * 60 + 24, 48, 56};
-
 static void playChimes(const Session &session, time_t now);
 static void playTick(const Session &session, time_t now);
 static void playNotes(std::initializer_list<int> frequencies);
@@ -41,6 +39,7 @@ void setup() {
 
   startNetwork();
   startFetchingSessions();
+  startFetchingHealth();
   debugSetup();
 }
 
@@ -53,7 +52,7 @@ void loop() {
 
   if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session));
   else if (session.isStartingWithin(COUNTDOWN_S, now)) showCountdown(session.start - now);
-  else showDashboard(now, FAKE_HEALTH, fetchProblem());
+  else showDashboard(now, todaysHealth(), fetchProblem());
 
   playChimes(session, now);
   delay(LOOP_MS);
