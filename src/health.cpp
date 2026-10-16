@@ -12,7 +12,7 @@
  */
 
 #define STATS_URL "https://moonlite.im/api/v1/stats/today"
-#define FETCH_INTERVAL_MS (5 * 60000)  // Moonlite syncs Garmin about this often
+#define FETCH_INTERVAL_MS (5 * 60000)  // Moonlite syncs Garmin every 10 minutes, so a new number shows within 15
 #define FETCH_RETRY_MS 30000
 #define TASK_STACK_BYTES 12288         // enough for the TLS handshake
 
