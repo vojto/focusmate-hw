@@ -2,13 +2,23 @@
 #include "sessions.h"
 
 /*
- * The screens the main loop and the dashboards draw. Each show function can be
+ * The three screens the main loop chooses from. Each show function can be
  * called on every loop: it clears the display when coming from another screen
  * and afterwards redraws only what changed.
  */
 
-// A dashboard: time, date and when the next session starts, plus a notice on top if there is one
-void showClock(time_t now, const Session &next, const char *notice);
+// Today's numbers from the health data
+struct Health {
+  int steps;
+  int sleepMinutes;
+  int hrvMs;
+  int restingHeartRate;  // beats per minute
+};
+
+// Between sessions: a grid of the date, the time and today's steps, sleep, HRV
+// and resting heart rate, each with an icon. A notice, when there is one, is
+// an orange bar across the top.
+void showDashboard(time_t now, const Health &health, const char *notice);
 
 // "Session in" and the time left as minutes:seconds
 void showCountdown(int32_t seconds);

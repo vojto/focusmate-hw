@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Sketch</title>
+<!--
+  A place to try the Core2's between-sessions dashboard before writing
+  firmware. The screen is 320x240, drawn scaled up, in the firmware's colors;
+  FreeSans on the device is a Helvetica clone, so Helvetica stands in for it.
+  Edit the values on the left to see how the layout copes.
+-->
+<style>
+  :root {
+    --bg: #f4f3ef; --ink: #1d1d1b; --muted: #6b6a64; --card: #fff; --line: #dcdad2;
+    --screen: #000; --white: #F1EFE8; --gray: #B4B2A9; --dim: #444441;
+    --green: #5DCAA5; --blue: #85B7EB; --pink: #ED93B1; --red: #E24B4A; --orange: #EF9F27;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; --card: #222220; --line: #34342f; }
+  }
+  :root[data-theme="dark"] { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; --card: #222220; --line: #34342f; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 -apple-system, system-ui, sans-serif; }
+  main { display: flex; gap: 32px; padding: 24px 16px; flex-wrap: wrap; align-items: flex-start; }
+  aside { width: 220px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; }
+  aside h1 { font-size: 15px; margin: 0 0 4px; }
+  label { display: grid; gap: 2px; color: var(--muted); font-size: 12px; }
+  input[type=text], input[type=number] { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+  .check { display: flex; gap: 6px; align-items: center; color: var(--ink); font-size: 13px; }
+  .frame { width: 640px; max-width: calc(100vw - 52px); aspect-ratio: 4 / 3; border-radius: 14px; background: #2a2a28; overflow: hidden; box-shadow: 0 0 0 10px #2a2a28; margin: 10px; }
+
+  /* The device screen: 320x240 logical px, scaled up as a whole */
+  .screen { width: 320px; height: 240px; background: var(--screen); color: var(--white); position: relative; transform-origin: 0 0;
+            font-family: Helvetica, Arial, sans-serif; overflow: hidden;
+            display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 1fr 1fr 1fr; }
+  .cell { display: flex; gap: 10px; align-items: center; padding: 0 14px; border-bottom: 1px solid var(--dim); }
+  .cell:nth-child(odd) { border-right: 1px solid var(--dim); }
+  .cell:nth-last-child(-n+2) { border-bottom: 0; }
+  .icon { width: 26px; height: 26px; flex: none; }
+  .value { font-size: 28px; white-space: nowrap; }
+  /* Date and time are a step smaller than the stats, so the date fits its cell */
+  .small .value { font-size: 22px; }
+  .unit { font-size: 14px; color: var(--gray); margin-left: 3px; }
+  .gray { color: var(--gray); } .green { color: var(--green); } .blue { color: var(--blue); } .pink { color: var(--pink); } .red { color: var(--red); }
+
+  .notice { position: absolute; inset: 0 0 auto 0; height: 22px; background: var(--orange); color: #000; font-size: 13px; display: none; align-items: center; justify-content: center; }
+  .has-notice .notice { display: flex; }
+</style>
+</head>
+<body>
+<main>
+  <aside>
+    <h1>Values</h1>
+    <label>Date <input id="date" type="text" value="16 Oct"></label>
+    <label>Time <input id="time" type="text" value="16:23"></label>
+    <label>Steps <input id="steps" type="number" value="8412"></label>
+    <label>Sleep, minutes <input id="sleep" type="number" value="444"></label>
+    <label>HRV, ms <input id="hrv" type="number" value="48"></label>
+    <label>Resting heart rate, bpm <input id="rhr" type="number" value="56"></label>
+    <label class="check"><input id="notice" type="checkbox"> Show “No Wi-Fi” notice</label>
+  </aside>
+  <div class="frame"><div class="screen"></div></div>
+</main>
+
+<script>
+const ICONS = {
+  calendar: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  clock: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  steps: '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><ellipse cx="8" cy="8" rx="3.2" ry="5"/><ellipse cx="8" cy="16.5" rx="2.4" ry="2"/><ellipse cx="16" cy="11" rx="3.2" ry="5"/><ellipse cx="16" cy="19.5" rx="2.4" ry="2"/></svg>',
+  sleep: '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>',
+  // A pulse line for the variability, a plain heart for the resting rate
+  hrv: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M2 12h4l2.5-6 4 13 3-9 1.5 2H22"/></svg>',
+  rhr: '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8.5-5.2-8.5-11.2A4.8 4.8 0 0 1 12 7a4.8 4.8 0 0 1 8.5 2.8C20.5 15.8 12 21 12 21z"/></svg>',
+};
+
+const read = id => document.getElementById(id).value;
+// 8412 -> "8.4k", 950 -> "950", 12300 -> "12.3k"
+const formatSteps = n => n < 1000 ? String(n) : `${(Math.floor(n / 100) / 10).toFixed(1)}k`;
+// 444 -> "7:24"
+const formatSleep = m => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+
+const cell = (icon, color, value, unit = '', extraClass = '') =>
+  `<div class="cell ${extraClass}"><span class="${color}">${ICONS[icon]}</span><span class="value">${value}${unit && `<span class="unit">${unit}</span>`}</span></div>`;
+
+function render() {
+  const screen = document.querySelector('.screen');
+  screen.innerHTML =
+    cell('calendar', 'gray', read('date'), '', 'small') + cell('clock', 'gray', read('time'), '', 'small') +
+    cell('steps', 'green', formatSteps(Number(read('steps')))) + cell('sleep', 'blue', formatSleep(Number(read('sleep')))) +
+    cell('hrv', 'pink', read('hrv'), 'ms') + cell('rhr', 'red', read('rhr'), 'bpm') +
+    '<div class="notice">No Wi-Fi</div>';
+  screen.classList.toggle('has-notice', document.getElementById('notice').checked);
+  fit();
+}
+
+// Scales the 320x240 screen to fill its frame
+function fit() {
+  const screen = document.querySelector('.screen');
+  screen.style.transform = `scale(${screen.parentElement.clientWidth / 320})`;
+}
+
+document.querySelectorAll('input').forEach(input => input.addEventListener('input', render));
+addEventListener('resize', fit);
+render();
+</script>
+</body>
+</html>
