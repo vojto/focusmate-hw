@@ -1,5 +1,4 @@
 #include <M5Unified.h>
-#include "dashboards.h"
 #include "debug.h"
 #include "network.h"
 #include "screens.h"
@@ -8,8 +7,8 @@
 /*
  * Focusmate session display for an M5Stack Core2. The loop looks at the
  * session that is running or comes next and decides everything from it: which
- * screen to show (a pie during a session, a countdown before one, otherwise the
- * dashboards) and when to chime and tick.
+ * screen to show (a pie during a session, a countdown before one, otherwise a
+ * dashboard) and when to chime and tick.
  */
 
 #define COUNTDOWN_S 3600    // a session starting within this gets the countdown
@@ -23,6 +22,9 @@
 #define TICK_MS 4
 #define TICK_CHANNEL 0      // the chimes take free channels from 7 down
 #define LOOP_MS 20          // short, so the ticks land evenly
+
+// Made up until the real health data is hooked up
+const Health FAKE_HEALTH = {8412, 7 * 60 + 24, 48, 56};
 
 static void playChimes(const Session &session, time_t now);
 static void playTick(const Session &session, time_t now);
@@ -43,7 +45,6 @@ void setup() {
 }
 
 void loop() {
-  M5.update();  // reads the touch screen
   debugLoop();
   time_t now = time(nullptr);
   Session session = currentSession(now);
@@ -52,7 +53,7 @@ void loop() {
 
   if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session));
   else if (session.isStartingWithin(COUNTDOWN_S, now)) showCountdown(session.start - now);
-  else showDashboard(now, session);
+  else showDashboard(now, FAKE_HEALTH, fetchProblem());
 
   playChimes(session, now);
   delay(LOOP_MS);
