@@ -1,4 +1,5 @@
 #pragma once
+#include "health.h"
 #include "sessions.h"
 
 /*
@@ -6,14 +7,6 @@
  * called on every loop: it clears the display when coming from another screen
  * and afterwards redraws only what changed.
  */
-
-// Today's numbers from the health data
-struct Health {
-  int steps;
-  int sleepMinutes;
-  int hrvMs;
-  int restingHeartRate;  // beats per minute
-};
 
 // Between sessions: a grid of the date, the time and today's steps, sleep, HRV
 // and resting heart rate, each with an icon. A notice, when there is one, is

@@ -35,13 +35,11 @@
   .screen { width: 320px; height: 240px; background: var(--screen); color: var(--white); position: relative; transform-origin: 0 0;
             font-family: Helvetica, Arial, sans-serif; overflow: hidden;
             display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 1fr 1fr 1fr; }
-  .cell { display: flex; gap: 10px; align-items: center; padding: 0 14px; border-bottom: 1px solid var(--dim); }
+  .cell { display: flex; gap: 8px; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--dim); }
   .cell:nth-child(odd) { border-right: 1px solid var(--dim); }
   .cell:nth-last-child(-n+2) { border-bottom: 0; }
   .icon { width: 26px; height: 26px; flex: none; }
   .value { font-size: 28px; white-space: nowrap; }
-  /* Date and time are a step smaller than the stats, so the date fits its cell */
-  .small .value { font-size: 22px; }
   .unit { font-size: 14px; color: var(--gray); margin-left: 3px; }
   .gray { color: var(--gray); } .green { color: var(--green); } .blue { color: var(--blue); } .pink { color: var(--pink); } .red { color: var(--red); }
 
@@ -81,13 +79,13 @@ const formatSteps = n => n < 1000 ? String(n) : `${(Math.floor(n / 100) / 10).to
 // 444 -> "7:24"
 const formatSleep = m => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
 
-const cell = (icon, color, value, unit = '', extraClass = '') =>
-  `<div class="cell ${extraClass}"><span class="${color}">${ICONS[icon]}</span><span class="value">${value}${unit && `<span class="unit">${unit}</span>`}</span></div>`;
+const cell = (icon, color, value, unit = '') =>
+  `<div class="cell"><span class="${color}">${ICONS[icon]}</span><span class="value">${value}${unit && `<span class="unit">${unit}</span>`}</span></div>`;
 
 function render() {
   const screen = document.querySelector('.screen');
   screen.innerHTML =
-    cell('calendar', 'gray', read('date'), '', 'small') + cell('clock', 'gray', read('time'), '', 'small') +
+    cell('calendar', 'gray', read('date')) + cell('clock', 'gray', read('time')) +
     cell('steps', 'green', formatSteps(Number(read('steps')))) + cell('sleep', 'blue', formatSleep(Number(read('sleep')))) +
     cell('hrv', 'pink', read('hrv'), 'ms') + cell('rhr', 'red', read('rhr'), 'bpm') +
     '<div class="notice">No Wi-Fi</div>';

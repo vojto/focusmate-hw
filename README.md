@@ -6,7 +6,7 @@ A desk display for [Focusmate](https://www.focusmate.com) sessions on an M5Stack
 
 - **In session:** a pie that starts full and empties clockwise a minute at a time, inside a ring with a tick per minute. The tick of the running minute is red. The bottom left corner shows the time left, like 0:15. When several sessions are booked back to back, the bottom right shows which one is running, like 3⁄4.
 - **Session starts within an hour:** a countdown.
-- **Otherwise:** a dashboard, a grid with the date, the time and today's steps, sleep, HRV and resting heart rate, each with an icon. The health numbers are made up for now.
+- **Otherwise:** a dashboard, a grid with the date, the time and today's steps, sleep, HRV and resting heart rate, each with an icon. The health numbers come from [Moonlite](https://moonlite.im), which syncs them from Garmin.
 
 The speaker plays two rising notes one minute before a session and three notes when it starts, and ticks quietly every second while it runs. Two descending notes at the same volume sound one minute before it ends.
 
@@ -18,7 +18,7 @@ Install [PlatformIO](https://platformio.org), then create your secrets file:
 cp src/secrets.example.h src/secrets.h
 ```
 
-Fill in your 2.4 GHz Wi-Fi name and password, and your Focusmate API key (Focusmate settings page). `src/secrets.h` is ignored by git.
+Fill in your 2.4 GHz Wi-Fi name and password, your Focusmate API key (Focusmate settings page) and your Moonlite API token (Moonlite settings page). `src/secrets.h` is ignored by git.
 
 The time zone is set to Europe/Bratislava in `TIME_ZONE` at the top of `src/network.cpp`; change it to your own [POSIX time zone string](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv).
 
@@ -31,6 +31,7 @@ pio run -t upload
 ## How it works
 
 - A background task asks `GET /v1/sessions` for the next 24 hours once a minute. A session you book or cancel shows up within a minute.
+- Another task asks Moonlite's `GET /api/v1/stats/today` every 5 minutes for the health numbers. A number Moonlite doesn't have yet shows as `--`.
 - The pie and the countdown run off the device's clock, which is synced from the internet, so they keep going between requests.
 - The pie and its ticks are drawn at twice their size into an off-screen canvas in the Core2's PSRAM and shrunk onto the screen, which smooths their edges.
 - The dashboard draws straight onto the screen. Its icons are SVGs in `tools/sketch/dashboard.html`, a page for trying the layout in a browser; `tools/icons.py` turns them into `src/icons.h`.
