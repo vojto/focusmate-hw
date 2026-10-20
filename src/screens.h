@@ -1,4 +1,5 @@
 #pragma once
+#include "health.h"
 #include "sessions.h"
 
 /*
@@ -7,8 +8,10 @@
  * and afterwards redraws only what changed.
  */
 
-// Time, date and when the next session starts, plus a notice on top if there is one
-void showClock(time_t now, const Session &next, const char *notice);
+// Between sessions: a grid of the date, the time and today's steps, sleep, HRV
+// and resting heart rate, each with an icon. A notice, when there is one, is
+// an orange bar across the top.
+void showDashboard(time_t now, const Health &health, const char *notice);
 
 // The time left as minutes:seconds in the middle, with "Session in" in the
 // bottom left corner and the coming session's position in its block in the
@@ -20,6 +23,3 @@ void showCountdown(int32_t seconds, BlockPosition block);
 // 0:15, and a session in a block of several gets its position in the bottom
 // right, like 3⁄4.
 void showPie(int usedMinutes, int totalMinutes, BlockPosition block);
-
-// 0-255
-void setScreenBrightness(int brightness);

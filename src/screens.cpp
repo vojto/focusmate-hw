@@ -1,11 +1,14 @@
 #include "screens.h"
 #include <M5Unified.h>
+#include "icons.h"
 #include "network.h"
 
 /*
- * Draws the clock, countdown and pie screens on the Core2's 320x240 display.
- * Text is laid out as fixed lines, described in the tables below; a line is
- * redrawn only when its text changes, which keeps the screen from flickering.
+ * Draws the dashboard, countdown and pie screens on the Core2's 320x240
+ * display. Text is laid out as fixed lines and cells, described in the tables
+ * below; each is redrawn only when its text changes, which keeps the screen
+ * from flickering. The dashboard's icons come from icons.h, made by
+ * tools/icons.py from the sketch in tools/sketch/dashboard.html.
  * The pie is drawn several times too big into an off-screen canvas and shrunk
  * onto the display, which smooths its edges.
  */
@@ -13,11 +16,12 @@
 // Colors are 0xRRGGBB; M5GFX reads uint32_t that way
 const uint32_t BACKGROUND = 0x000000, TEXT_WHITE = 0xF1EFE8, TEXT_GRAY = 0xB4B2A9;
 const uint32_t PIE_RED = 0xE24B4A, PIE_USED = 0x2C2C2A;
-const uint32_t COUNTDOWN_GREEN = 0x5DCAA5, NOTICE_ORANGE = 0xEF9F27;
+const uint32_t COUNTDOWN_GREEN = 0x5DCAA5, NOTICE_ORANGE = 0xEF9F27, DIVIDER_GRAY = 0x444441;
+const uint32_t STEPS_GREEN = 0x5DCAA5, SLEEP_BLUE = 0x85B7EB, HRV_PINK = 0xED93B1, RHR_RED = 0xE24B4A;
 
 #define CENTER_X 160
 #define CENTER_Y 120
-#define SLOT_COUNT 4
+#define SLOT_COUNT 6
 
 // The pie and its ticks, in screen pixels and degrees
 #define PIE_RADIUS 106
@@ -43,6 +47,34 @@ const uint32_t COUNTDOWN_GREEN = 0x5DCAA5, NOTICE_ORANGE = 0xEF9F27;
 #define SLASH_GAP 2             // between the slash and the digits
 #define SLASH_THICKNESS 0.7f    // half the line's width
 
+// The dashboard is a grid of two columns and three rows. Each cell has an icon
+// on the left and its value next to it, vertically centered.
+#define CELL_WIDTH 160
+#define CELL_HEIGHT 80
+#define CELL_PADDING 12
+#define ICON_GAP 8              // between the icon and the value
+#define TEXT_LEFT (CELL_PADDING + ICON_SIZE + ICON_GAP)
+#define TEXT_BOX_HEIGHT 40      // what gets cleared around a value
+#define UNIT_GAP 3              // between a value and its unit, like "48 ms"
+#define VALUE_BASELINE 12       // below a cell's center, about half the cap height
+#define NOTICE_HEIGHT 20        // a bar across the top, above the first row's text
+
+// A cell of the dashboard's grid. Each needs its own slot, like a TextLine.
+struct Cell {
+  int slot;
+  int column;
+  int row;
+  const uint8_t *icon;
+  uint32_t iconColor;
+};
+
+const Cell DATE_CELL = {0, 0, 0, ICON_CALENDAR, TEXT_GRAY};
+const Cell TIME_CELL = {1, 1, 0, ICON_CLOCK, TEXT_GRAY};
+const Cell STEPS_CELL = {2, 0, 1, ICON_STEPS, STEPS_GREEN};
+const Cell SLEEP_CELL = {3, 1, 1, ICON_SLEEP, SLEEP_BLUE};
+const Cell HRV_CELL = {4, 0, 2, ICON_HRV, HRV_PINK};
+const Cell RHR_CELL = {5, 1, 2, ICON_RHR, RHR_RED};
+
 // A centered line of text. Lines of one screen each need their own slot,
 // which is where the text now on the display is remembered.
 struct TextLine {
@@ -53,16 +85,19 @@ struct TextLine {
   uint32_t color;
 };
 
-const TextLine CLOCK_NOTICE = {0, 18, &fonts::FreeSans9pt7b, 1, NOTICE_ORANGE};
-const TextLine CLOCK_TIME = {1, 88, &fonts::Font7, 1.4f, TEXT_WHITE};
-const TextLine CLOCK_DATE = {2, 150, &fonts::FreeSans12pt7b, 1, TEXT_GRAY};
-const TextLine CLOCK_NEXT = {3, 195, &fonts::FreeSans12pt7b, 1, TEXT_WHITE};
-
 const TextLine COUNTDOWN_TIME = {0, CENTER_Y, &fonts::Font7, 2, COUNTDOWN_GREEN};
 
-enum Screen { SCREEN_NONE, SCREEN_CLOCK, SCREEN_COUNTDOWN, SCREEN_PIE };
+enum Screen { SCREEN_NONE, SCREEN_DASHBOARD, SCREEN_COUNTDOWN, SCREEN_PIE };
 
 static bool enterScreen(Screen screen);
+static void clearScreen();
+static void drawDashboardFrame(const char *notice);
+static void drawIcon(const Cell &cell);
+static void drawCell(const Cell &cell, const String &value, const char *unit = "");
+static String formatDate(time_t when);
+static String formatSteps(int steps);
+static String formatSleep(int minutes);
+static String formatNumber(int number);
 static void drawLine(const TextLine &line, const String &text);
 static String formatLocalTime(time_t when, const char *format);
 static void drawTimeLeft(int minutes);
@@ -79,14 +114,24 @@ static M5Canvas pieCanvas;
 
 // MARK: Screens
 
-void showClock(time_t now, const Session &next, const char *notice) {
-  enterScreen(SCREEN_CLOCK);
-  drawLine(CLOCK_NOTICE, notice);
-  if (!isTimeSynced()) return drawLine(CLOCK_DATE, "Syncing time...");
+void showDashboard(time_t now, const Health &health, const char *notice) {
+  static String shownNotice;
+  bool isFirstDraw = enterScreen(SCREEN_DASHBOARD);
+  // The notice bar crosses the grid, so a change redraws everything
+  if (shownNotice != notice) {
+    shownNotice = notice;
+    clearScreen();
+    isFirstDraw = true;
+  }
+  if (isFirstDraw) drawDashboardFrame(notice);
 
-  drawLine(CLOCK_TIME, formatLocalTime(now, "%H:%M:%S"));
-  drawLine(CLOCK_DATE, formatLocalTime(now, "%a %d %b"));
-  drawLine(CLOCK_NEXT, next.isBooked() ? formatLocalTime(next.start, "Next session %H:%M") : "");
+  bool isSynced = isTimeSynced();
+  drawCell(DATE_CELL, isSynced ? formatDate(now) : "--");
+  drawCell(TIME_CELL, isSynced ? formatLocalTime(now, "%H:%M") : "--:--");
+  drawCell(STEPS_CELL, formatSteps(health.steps));
+  drawCell(SLEEP_CELL, formatSleep(health.sleepMinutes));
+  drawCell(HRV_CELL, formatNumber(health.hrvMs), "ms");
+  drawCell(RHR_CELL, formatNumber(health.restingHeartRate), "bpm");
 }
 
 void showCountdown(int32_t seconds, BlockPosition block) {
@@ -127,13 +172,6 @@ void showPie(int usedMinutes, int totalMinutes, BlockPosition block) {
   drawBlockPosition(block);
 }
 
-void setScreenBrightness(int brightness) {
-  static int shownBrightness = -1;
-  if (brightness == shownBrightness) return;
-  shownBrightness = brightness;
-  M5.Display.setBrightness(brightness);
-}
-
 // MARK: Drawing helpers
 
 // Clears the display when another screen was showing, and says whether it did
@@ -141,9 +179,13 @@ static bool enterScreen(Screen screen) {
   static Screen shownScreen = SCREEN_NONE;
   if (screen == shownScreen) return false;
   shownScreen = screen;
+  clearScreen();
+  return true;
+}
+
+static void clearScreen() {
   M5.Display.fillScreen(BACKGROUND);
   for (String &text : shownTexts) text = "";
-  return true;
 }
 
 static void drawLine(const TextLine &line, const String &text) {
@@ -165,6 +207,90 @@ static String formatLocalTime(time_t when, const char *format) {
   strftime(text, sizeof(text), format, &local);
   return text;
 }
+
+// MARK: Dashboard
+
+// The grid lines, the icons and the notice bar, which change only with the notice
+static void drawDashboardFrame(const char *notice) {
+  M5.Display.drawFastVLine(CELL_WIDTH, 0, M5.Display.height(), DIVIDER_GRAY);
+  for (int y : {CELL_HEIGHT, 2 * CELL_HEIGHT}) M5.Display.drawFastHLine(0, y, M5.Display.width(), DIVIDER_GRAY);
+  for (const Cell *cell : {&DATE_CELL, &TIME_CELL, &STEPS_CELL, &SLEEP_CELL, &HRV_CELL, &RHR_CELL}) drawIcon(*cell);
+  if (!*notice) return;
+
+  M5.Display.fillRect(0, 0, M5.Display.width(), NOTICE_HEIGHT, NOTICE_ORANGE);
+  M5.Display.setFont(&fonts::FreeSans9pt7b);
+  M5.Display.setTextSize(1);
+  M5.Display.setTextColor(BACKGROUND, NOTICE_ORANGE);
+  M5.Display.setTextDatum(middle_center);
+  M5.Display.setTextPadding(0);
+  M5.Display.drawString(notice, CENTER_X, NOTICE_HEIGHT / 2);
+}
+
+// The icon's coverage blended onto the black background in its color
+static void drawIcon(const Cell &cell) {
+  int left = cell.column * CELL_WIDTH + CELL_PADDING;
+  int top = cell.row * CELL_HEIGHT + (CELL_HEIGHT - ICON_SIZE) / 2;
+  uint8_t red = cell.iconColor >> 16, green = cell.iconColor >> 8, blue = cell.iconColor;
+  M5.Display.startWrite();
+  for (int y = 0; y < ICON_SIZE; y++) {
+    for (int x = 0; x < ICON_SIZE; x++) {
+      int alpha = cell.icon[y * ICON_SIZE + x];
+      if (alpha) M5.Display.drawPixel(left + x, top + y, M5.Display.color888(red * alpha / 255, green * alpha / 255, blue * alpha / 255));
+    }
+  }
+  M5.Display.endWrite();
+}
+
+// The value left-aligned after the icon, and the unit in small gray after it
+static void drawCell(const Cell &cell, const String &value, const char *unit) {
+  String text = value + unit;
+  if (shownTexts[cell.slot] == text) return;
+  shownTexts[cell.slot] = text;
+
+  int left = cell.column * CELL_WIDTH + TEXT_LEFT;
+  int centerY = cell.row * CELL_HEIGHT + CELL_HEIGHT / 2;
+  // Up to the cell's edge, short of the grid line
+  M5.Display.fillRect(left, centerY - TEXT_BOX_HEIGHT / 2, CELL_WIDTH - TEXT_LEFT - 2, TEXT_BOX_HEIGHT, BACKGROUND);
+  int baseline = centerY + VALUE_BASELINE;
+  M5.Display.setFont(&fonts::FreeSans18pt7b);
+  M5.Display.setTextSize(1);
+  M5.Display.setTextColor(TEXT_WHITE, BACKGROUND);
+  M5.Display.setTextDatum(baseline_left);
+  M5.Display.setTextPadding(0);
+  int valueWidth = M5.Display.drawString(value, left, baseline);
+  if (!*unit) return;
+
+  M5.Display.setFont(&fonts::FreeSans9pt7b);
+  M5.Display.setTextColor(TEXT_GRAY, BACKGROUND);
+  M5.Display.drawString(unit, left + valueWidth + UNIT_GAP, baseline);
+}
+
+// "16 Oct", "6 Oct"
+static String formatDate(time_t when) {
+  String text = formatLocalTime(when, "%d %b");
+  return text.startsWith("0") ? text.substring(1) : text;
+}
+
+// "950", "8.4k"
+static String formatSteps(int steps) {
+  if (steps == HEALTH_MISSING) return "--";
+  if (steps < 1000) return String(steps);
+  char text[12];
+  snprintf(text, sizeof(text), "%d.%dk", steps / 1000, steps % 1000 / 100);
+  return text;
+}
+
+// Hours and minutes: "7:24"
+static String formatSleep(int minutes) {
+  if (minutes == HEALTH_MISSING) return "--";
+  char text[12];
+  snprintf(text, sizeof(text), "%d:%02d", minutes / 60, minutes % 60);
+  return text;
+}
+
+static String formatNumber(int number) { return number == HEALTH_MISSING ? "--" : String(number); }
+
+// MARK: Corner labels
 
 // Hours and minutes: "0:15", "1:15"
 static void drawTimeLeft(int minutes) {

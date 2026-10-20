@@ -1,5 +1,6 @@
 #include <M5Unified.h>
 #include "debug.h"
+#include "health.h"
 #include "network.h"
 #include "screens.h"
 #include "sessions.h"
@@ -8,16 +9,14 @@
  * Focusmate session display for an M5Stack Core2. The loop looks at the
  * session that is running or comes next and decides everything from it: which
  * screen to show (a pie during a session, a countdown before one, otherwise a
- * clock), how bright the screen is, and when to chime and tick.
+ * dashboard) and when to chime and tick.
  */
 
 #define COUNTDOWN_S 3600    // a session starting within this gets the countdown
-#define BRIGHT_S 600        // the screen is bright from this long before a session until it ends
 #define WARNING_S 60        // the first chime plays this long before the start
 #define END_WARNING_S 60    // two descending notes this long before the end
 #define START_CHIME_S 10    // the start chime is skipped once the session is further in than this
 #define BRIGHTNESS 100      // 0-255
-#define DIM_BRIGHTNESS 24
 #define VOLUME 128          // 0-255
 #define TICK_VOLUME 20      // 0-255, on top of VOLUME
 #define TICK_HZ 1500
@@ -34,11 +33,13 @@ void setup() {
   // Otherwise the clock starts from whatever the Core2's clock chip holds
   cfg.internal_rtc = false;
   M5.begin(cfg);
+  M5.Display.setBrightness(BRIGHTNESS);
   M5.Speaker.setVolume(VOLUME);
   M5.Speaker.setChannelVolume(TICK_CHANNEL, TICK_VOLUME);
 
   startNetwork();
   startFetchingSessions();
+  startFetchingHealth();
   debugSetup();
 }
 
@@ -51,10 +52,8 @@ void loop() {
 
   if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session));
   else if (session.isStartingWithin(COUNTDOWN_S, now)) showCountdown(session.start - now, blockPosition(session));
-  else showClock(now, session, fetchProblem());
+  else showDashboard(now, todaysHealth(), fetchProblem());
 
-  bool isSessionNear = session.isRunning(now) || session.isStartingWithin(BRIGHT_S, now);
-  setScreenBrightness(isSessionNear ? BRIGHTNESS : DIM_BRIGHTNESS);
   playChimes(session, now);
   delay(LOOP_MS);
 }

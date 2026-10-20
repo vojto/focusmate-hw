@@ -11,3 +11,6 @@
 
 // From Focusmate: Settings > API key
 #define FOCUSMATE_API_KEY "your-api-key"
+
+// From Moonlite: Settings > API token
+#define MOONLITE_API_TOKEN "your-api-token"
