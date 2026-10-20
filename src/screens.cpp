@@ -57,6 +57,8 @@ const uint32_t STEPS_GREEN = 0x5DCAA5, SLEEP_BLUE = 0x85B7EB, HRV_PINK = 0xED93B
 #define TEXT_BOX_HEIGHT 40      // what gets cleared around a value
 #define UNIT_GAP 3              // between a value and its unit, like "48 ms"
 #define VALUE_BASELINE 12       // below a cell's center, about half the cap height
+#define BIRTH_TIME 681343200     // 5 Aug 1991, midnight in Bratislava
+#define SECONDS_PER_YEAR (365.2425 * 86400)
 #define NOTICE_HEIGHT 20        // a bar across the top, above the first row's text
 
 // A cell of the dashboard's grid. Each needs its own slot, like a TextLine.
@@ -69,7 +71,7 @@ struct Cell {
 };
 
 const Cell DATE_CELL = {0, 0, 0, ICON_CALENDAR, TEXT_GRAY};
-const Cell TIME_CELL = {1, 1, 0, ICON_CLOCK, TEXT_GRAY};
+const Cell AGE_CELL = {1, 1, 0, ICON_CLOCK, TEXT_GRAY};
 const Cell STEPS_CELL = {2, 0, 1, ICON_STEPS, STEPS_GREEN};
 const Cell SLEEP_CELL = {3, 1, 1, ICON_SLEEP, SLEEP_BLUE};
 const Cell HRV_CELL = {4, 0, 2, ICON_HRV, HRV_PINK};
@@ -95,6 +97,7 @@ static void drawDashboardFrame(const char *notice);
 static void drawIcon(const Cell &cell);
 static void drawCell(const Cell &cell, const String &value, const char *unit = "");
 static String formatDate(time_t when);
+static String formatAge(time_t now);
 static String formatSteps(int steps);
 static String formatSleep(int minutes);
 static String formatNumber(int number);
@@ -127,7 +130,7 @@ void showDashboard(time_t now, const Health &health, const char *notice) {
 
   bool isSynced = isTimeSynced();
   drawCell(DATE_CELL, isSynced ? formatDate(now) : "--");
-  drawCell(TIME_CELL, isSynced ? formatLocalTime(now, "%H:%M") : "--:--");
+  drawCell(AGE_CELL, isSynced ? formatAge(now) : "--");
   drawCell(STEPS_CELL, formatSteps(health.steps));
   drawCell(SLEEP_CELL, formatSleep(health.sleepMinutes));
   drawCell(HRV_CELL, formatNumber(health.hrvMs), "ms");
@@ -214,7 +217,7 @@ static String formatLocalTime(time_t when, const char *format) {
 static void drawDashboardFrame(const char *notice) {
   M5.Display.drawFastVLine(CELL_WIDTH, 0, M5.Display.height(), DIVIDER_GRAY);
   for (int y : {CELL_HEIGHT, 2 * CELL_HEIGHT}) M5.Display.drawFastHLine(0, y, M5.Display.width(), DIVIDER_GRAY);
-  for (const Cell *cell : {&DATE_CELL, &TIME_CELL, &STEPS_CELL, &SLEEP_CELL, &HRV_CELL, &RHR_CELL}) drawIcon(*cell);
+  for (const Cell *cell : {&DATE_CELL, &AGE_CELL, &STEPS_CELL, &SLEEP_CELL, &HRV_CELL, &RHR_CELL}) drawIcon(*cell);
   if (!*notice) return;
 
   M5.Display.fillRect(0, 0, M5.Display.width(), NOTICE_HEIGHT, NOTICE_ORANGE);
@@ -269,6 +272,11 @@ static void drawCell(const Cell &cell, const String &value, const char *unit) {
 static String formatDate(time_t when) {
   String text = formatLocalTime(when, "%d %b");
   return text.startsWith("0") ? text.substring(1) : text;
+}
+
+// Vojto's age in years: "35.21"
+static String formatAge(time_t now) {
+  return String((now - BIRTH_TIME) / SECONDS_PER_YEAR, 2);
 }
 
 // "950", "8.4k"
