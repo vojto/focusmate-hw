@@ -29,9 +29,9 @@ const uint32_t COUNTDOWN_GREEN = 0x5DCAA5, NOTICE_ORANGE = 0xEF9F27;
 #define PIE_SCALE 2             // how many times too big the pie is drawn; a redraw takes ~0.6s at 2, ~1s at 3
 #define PIE_CANVAS (240 * PIE_SCALE)
 
-// The time left in the bottom left corner and the session's position in its
-// block in the bottom right. The box is what gets cleared in each corner; it
-// stays clear of the ticks.
+// The bottom corners of the pie and countdown screens: the time left or a
+// caption on the left, the session's position in its block on the right. The
+// box is what gets cleared in each corner; it stays clear of the ticks.
 #define CORNER_LEFT 8
 #define CORNER_RIGHT 312
 #define CORNER_BASELINE 231
@@ -58,8 +58,7 @@ const TextLine CLOCK_TIME = {1, 88, &fonts::Font7, 1.4f, TEXT_WHITE};
 const TextLine CLOCK_DATE = {2, 150, &fonts::FreeSans12pt7b, 1, TEXT_GRAY};
 const TextLine CLOCK_NEXT = {3, 195, &fonts::FreeSans12pt7b, 1, TEXT_WHITE};
 
-const TextLine COUNTDOWN_CAPTION = {0, 52, &fonts::FreeSans12pt7b, 1, TEXT_GRAY};
-const TextLine COUNTDOWN_TIME = {1, 132, &fonts::Font7, 2, COUNTDOWN_GREEN};
+const TextLine COUNTDOWN_TIME = {0, CENTER_Y, &fonts::Font7, 2, COUNTDOWN_GREEN};
 
 enum Screen { SCREEN_NONE, SCREEN_CLOCK, SCREEN_COUNTDOWN, SCREEN_PIE };
 
@@ -67,6 +66,7 @@ static bool enterScreen(Screen screen);
 static void drawLine(const TextLine &line, const String &text);
 static String formatLocalTime(time_t when, const char *format);
 static void drawTimeLeft(int minutes);
+static void drawCornerLabel(const char *text);
 static void drawBlockPosition(BlockPosition block);
 static void startCornerText(int boxLeft, lgfx::textdatum_t datum);
 static void clearPieCanvas();
@@ -89,12 +89,17 @@ void showClock(time_t now, const Session &next, const char *notice) {
   drawLine(CLOCK_NEXT, next.isBooked() ? formatLocalTime(next.start, "Next session %H:%M") : "");
 }
 
-void showCountdown(int32_t seconds) {
-  enterScreen(SCREEN_COUNTDOWN);
+void showCountdown(int32_t seconds, BlockPosition block) {
+  static BlockPosition shownBlock;
+  bool isFirstDraw = enterScreen(SCREEN_COUNTDOWN);
   char text[8];
   snprintf(text, sizeof(text), "%d:%02d", (int)(seconds / 60), (int)(seconds % 60));
-  drawLine(COUNTDOWN_CAPTION, "Session in");
   drawLine(COUNTDOWN_TIME, text);
+
+  if (isFirstDraw) drawCornerLabel("Session in");
+  if (!isFirstDraw && block == shownBlock) return;
+  shownBlock = block;
+  drawBlockPosition(block);
 }
 
 // The used-up part grows clockwise from 12 o'clock, like on a Time Timer. Its
@@ -103,8 +108,7 @@ void showPie(int usedMinutes, int totalMinutes, BlockPosition block) {
   static int shownUsed, shownTotal;
   static BlockPosition shownBlock;
   bool isFirstDraw = enterScreen(SCREEN_PIE);
-  bool isBlockShown = block.number == shownBlock.number && block.total == shownBlock.total;
-  if (!isFirstDraw && usedMinutes == shownUsed && totalMinutes == shownTotal && isBlockShown) return;
+  if (!isFirstDraw && usedMinutes == shownUsed && totalMinutes == shownTotal && block == shownBlock) return;
   shownUsed = usedMinutes;
   shownTotal = totalMinutes;
   shownBlock = block;
@@ -166,6 +170,11 @@ static String formatLocalTime(time_t when, const char *format) {
 static void drawTimeLeft(int minutes) {
   char text[8];
   snprintf(text, sizeof(text), "%d:%02d", minutes / 60, minutes % 60);
+  drawCornerLabel(text);
+}
+
+// In the bottom left corner. Only its box is cleared, so a longer text must not change.
+static void drawCornerLabel(const char *text) {
   startCornerText(CORNER_LEFT, baseline_left);
   M5.Display.drawString(text, CORNER_LEFT, CORNER_BASELINE);
 }

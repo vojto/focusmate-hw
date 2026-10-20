@@ -50,7 +50,7 @@ void loop() {
   playTick(session, now);
 
   if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session));
-  else if (session.isStartingWithin(COUNTDOWN_S, now)) showCountdown(session.start - now);
+  else if (session.isStartingWithin(COUNTDOWN_S, now)) showCountdown(session.start - now, blockPosition(session));
   else showClock(now, session, fetchProblem());
 
   bool isSessionNear = session.isRunning(now) || session.isStartingWithin(BRIGHT_S, now);

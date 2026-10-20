@@ -24,6 +24,8 @@ struct Session {
 struct BlockPosition {
   int number;
   int total;
+
+  bool operator==(const BlockPosition &other) const { return number == other.number && total == other.total; }
 };
 
 void startFetchingSessions();

@@ -10,8 +10,10 @@
 // Time, date and when the next session starts, plus a notice on top if there is one
 void showClock(time_t now, const Session &next, const char *notice);
 
-// "Session in" and the time left as minutes:seconds
-void showCountdown(int32_t seconds);
+// The time left as minutes:seconds in the middle, with "Session in" in the
+// bottom left corner and the coming session's position in its block in the
+// bottom right, as on the pie
+void showCountdown(int32_t seconds, BlockPosition block);
 
 // A pie that starts full and empties clockwise a minute at a time, inside a
 // ring with a tick per minute. The time left is in the bottom left corner, like
