@@ -35,10 +35,13 @@ static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 static Session sessions[MAX_SESSIONS];
 static int sessionCount = 0;
 static volatile bool hasFetchFailed = false;
+static TaskHandle_t fetchTaskHandle = nullptr;
 
 // MARK: Reading and replacing the list
 
-void startFetchingSessions() { xTaskCreate(fetchTask, "fetch", TASK_STACK_BYTES, nullptr, 1, nullptr); }
+void startFetchingSessions() { xTaskCreate(fetchTask, "fetch", TASK_STACK_BYTES, nullptr, 1, &fetchTaskHandle); }
+
+void refreshSessions() { xTaskNotifyGive(fetchTaskHandle); }
 
 Session currentSession(time_t now) {
   Session current = {};
@@ -93,7 +96,8 @@ static void fetchTask(void *) {
     }
     // The request lives in its own function so its objects are freed between fetches
     hasFetchFailed = !fetchSessions();
-    delay(hasFetchFailed ? FETCH_RETRY_MS : FETCH_INTERVAL_MS);
+    // Waits like a delay, but refreshSessions() ends the wait early
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(hasFetchFailed ? FETCH_RETRY_MS : FETCH_INTERVAL_MS));
   }
 }
 

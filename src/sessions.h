@@ -30,6 +30,9 @@ struct BlockPosition {
 
 void startFetchingSessions();
 
+// Fetches right away instead of waiting for the next minute
+void refreshSessions();
+
 // The session that is running or comes next; not booked if there is none
 Session currentSession(time_t now);
 
