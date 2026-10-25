@@ -14,6 +14,10 @@
 
 const uint32_t NOTICE_ORANGE = 0xEF9F27;
 const uint32_t STEPS_GREEN = 0x5DCAA5, SLEEP_BLUE = 0x85B7EB, HRV_PINK = 0xED93B1, RHR_RED = 0xE24B4A;
+// Sleep in half-hour buckets, red (short nights) to green, like Moonlite's
+// sleepColor: D3's RdYlGn scheme with 7 colors, which reads fine on black
+const int SLEEP_BUCKET_MINUTES[] = {330, 360, 390, 420, 450, 480};
+const uint32_t SLEEP_COLORS[] = {0xD73027, 0xFC8D59, 0xFEE08B, 0xFFFFBF, 0xD9EF8B, 0x91CF60, 0x1A9850};
 
 #define SLIDE_MS 60000          // how long a slide stays
 #define TAP_HZ 2000             // the click that confirms a tap
@@ -34,7 +38,8 @@ static String sleepText(time_t now);
 static String hrvText(time_t now);
 static String restingHeartRateText(time_t now);
 static String healthNumber(int number);
-static String weekSleepText(int week);
+static String weekLabel(time_t now, int week);
+static uint32_t sleepColor(int minutes);
 static String hoursAndMinutes(int minutes);
 
 typedef void (*Slide)(bool isFirstDraw, time_t now);
@@ -134,20 +139,35 @@ static String healthNumber(int number) { return number == HEALTH_MISSING ? "--" 
 
 // MARK: Sleep
 
-// Last night and the average night of this week so far, then of the four weeks before
-const GridCell SLEEP[GRID_CELLS] = {
-    {nullptr, 0, sleepText, "night"},
-    {nullptr, 0, [](time_t) { return weekSleepText(0); }, "this wk"},
-    {nullptr, 0, [](time_t) { return weekSleepText(1); }, "1w ago"},
-    {nullptr, 0, [](time_t) { return weekSleepText(2); }, "2w ago"},
-    {nullptr, 0, [](time_t) { return weekSleepText(3); }, "3w ago"},
-    {nullptr, 0, [](time_t) { return weekSleepText(4); }, "4w ago"},
-};
+// Last night, then the average night of this week so far and of the four weeks
+// before it, each labeled with its week number
+static void showSleep(bool isFirstDraw, time_t now) {
+  if (isFirstDraw) drawGridLines();
+  Health health = todaysHealth();
+  drawGridValue(0, hoursAndMinutes(health.sleepMinutes), sleepColor(health.sleepMinutes), "night");
+  for (int week = 0; week < SLEEP_WEEKS; week++) {
+    int minutes = health.weeklySleepMinutes[week];
+    drawGridValue(week + 1, hoursAndMinutes(minutes), sleepColor(minutes), weekLabel(now, week));
+  }
+}
 
-static void showSleep(bool isFirstDraw, time_t now) { showGrid(SLEEP, isFirstDraw, now); }
+// The ISO week number: "W43". 0 is this week, 1 the week before.
+static String weekLabel(time_t now, int week) {
+  if (!isTimeSynced()) return "";
+  time_t then = now - week * 7 * 86400;
+  struct tm local;
+  localtime_r(&then, &local);
+  char number[4];
+  strftime(number, sizeof(number), "%V", &local);
+  return "W" + String(atoi(number));
+}
 
-// 0 is this week, 1 the week before
-static String weekSleepText(int week) { return hoursAndMinutes(todaysHealth().weeklySleepMinutes[week]); }
+static uint32_t sleepColor(int minutes) {
+  if (minutes == HEALTH_MISSING) return TEXT_WHITE;
+  int bucket = 0;
+  while (bucket < 6 && minutes >= SLEEP_BUCKET_MINUTES[bucket]) bucket++;
+  return SLEEP_COLORS[bucket];
+}
 
 // "7:24"
 static String hoursAndMinutes(int minutes) {

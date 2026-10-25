@@ -13,19 +13,24 @@ const uint32_t DIVIDER_GRAY = 0x444441;
 #define UNIT_GAP 3              // between a value and its unit, like "48 ms"
 #define VALUE_BASELINE 12       // below a cell's center, about half the cap height
 
-static void drawLines();
 static void drawIcon(int index, const GridCell &cell);
-static void drawValue(int index, const GridCell &cell, const String &value);
+static void drawValue(int index, int textLeft, const String &value, uint32_t color, const char *unit, const String &label);
 
 void showGrid(const GridCell (&cells)[GRID_CELLS], bool isFirstDraw, time_t now) {
-  if (isFirstDraw) drawLines();
+  if (isFirstDraw) drawGridLines();
   for (int i = 0; i < GRID_CELLS; i++) {
-    if (isFirstDraw && cells[i].icon) drawIcon(i, cells[i]);
-    drawValue(i, cells[i], cells[i].value(now));
+    const GridCell &cell = cells[i];
+    if (isFirstDraw && cell.icon) drawIcon(i, cell);
+    int textLeft = CELL_PADDING + (cell.icon ? ICON_SIZE + ICON_GAP : 0);
+    drawValue(i, textLeft, cell.value(now), TEXT_WHITE, cell.unit ? cell.unit : "", "");
   }
 }
 
-static void drawLines() {
+void drawGridValue(int index, const String &value, uint32_t color, const String &label) {
+  drawValue(index, CELL_PADDING, value, color, "", label);
+}
+
+void drawGridLines() {
   for (int x = CELL_WIDTH; x < COLUMNS * CELL_WIDTH; x += CELL_WIDTH) M5.Display.drawFastVLine(x, 0, M5.Display.height(), DIVIDER_GRAY);
   for (int y = CELL_HEIGHT; y < ROWS * CELL_HEIGHT; y += CELL_HEIGHT) M5.Display.drawFastHLine(0, y, M5.Display.width(), DIVIDER_GRAY);
 }
@@ -45,26 +50,27 @@ static void drawIcon(int index, const GridCell &cell) {
   M5.Display.endWrite();
 }
 
-// Left-aligned after the icon, or at the padding without one. The cell's index is its slot.
-static void drawValue(int index, const GridCell &cell, const String &value) {
-  const char *unit = cell.unit ? cell.unit : "";
-  if (isShown(index, value + unit)) return;
+// The value at textLeft, the unit right after it and the label at the cell's
+// right edge. The cell's index is its slot.
+static void drawValue(int index, int textLeft, const String &value, uint32_t color, const char *unit, const String &label) {
+  if (isShown(index, value + unit + "|" + label)) return;
 
-  int textLeft = CELL_PADDING + (cell.icon ? ICON_SIZE + ICON_GAP : 0);
-  int left = index % COLUMNS * CELL_WIDTH + textLeft;
+  int cellLeft = index % COLUMNS * CELL_WIDTH;
+  int left = cellLeft + textLeft;
   int centerY = index / COLUMNS * CELL_HEIGHT + CELL_HEIGHT / 2;
   // Up to the cell's edge, short of the grid line
   M5.Display.fillRect(left, centerY - TEXT_BOX_HEIGHT / 2, CELL_WIDTH - textLeft - 2, TEXT_BOX_HEIGHT, BACKGROUND);
   int baseline = centerY + VALUE_BASELINE;
   M5.Display.setFont(&fonts::FreeSans18pt7b);
   M5.Display.setTextSize(1);
-  M5.Display.setTextColor(TEXT_WHITE, BACKGROUND);
+  M5.Display.setTextColor(color, BACKGROUND);
   M5.Display.setTextDatum(baseline_left);
   M5.Display.setTextPadding(0);
   int valueWidth = M5.Display.drawString(value, left, baseline);
-  if (!*unit) return;
 
   M5.Display.setFont(&fonts::FreeSans9pt7b);
   M5.Display.setTextColor(TEXT_GRAY, BACKGROUND);
-  M5.Display.drawString(unit, left + valueWidth + UNIT_GAP, baseline);
+  if (*unit) M5.Display.drawString(unit, left + valueWidth + UNIT_GAP, baseline);
+  M5.Display.setTextDatum(baseline_right);
+  if (label.length()) M5.Display.drawString(label, cellLeft + CELL_WIDTH - CELL_PADDING, baseline);
 }
