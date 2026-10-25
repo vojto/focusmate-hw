@@ -26,7 +26,7 @@ const uint32_t STEPS_GREEN = 0x5DCAA5, SLEEP_BLUE = 0x85B7EB, HRV_PINK = 0xED93B
 static void showSlide(int index);
 static void drawNotice(const char *notice);
 static void showDashboard(bool isFirstDraw, time_t now);
-static void showPlaceholder(bool isFirstDraw, time_t now);
+static void showSleep(bool isFirstDraw, time_t now);
 static String dateText(time_t now);
 static String ageText(time_t now);
 static String stepsText(time_t now);
@@ -34,9 +34,11 @@ static String sleepText(time_t now);
 static String hrvText(time_t now);
 static String restingHeartRateText(time_t now);
 static String healthNumber(int number);
+static String weekSleepText(int week);
+static String hoursAndMinutes(int minutes);
 
 typedef void (*Slide)(bool isFirstDraw, time_t now);
-const Slide SLIDES[] = {showDashboard, showPlaceholder};
+const Slide SLIDES[] = {showDashboard, showSleep};
 const int SLIDE_COUNT = sizeof(SLIDES) / sizeof(SLIDES[0]);
 
 static int slide = 0;
@@ -122,14 +124,7 @@ static String stepsText(time_t now) {
   return text;
 }
 
-// Hours and minutes: "7:24"
-static String sleepText(time_t now) {
-  int minutes = todaysHealth().sleepMinutes;
-  if (minutes == HEALTH_MISSING) return "--";
-  char text[12];
-  snprintf(text, sizeof(text), "%d:%02d", minutes / 60, minutes % 60);
-  return text;
-}
+static String sleepText(time_t now) { return hoursAndMinutes(todaysHealth().sleepMinutes); }
 
 static String hrvText(time_t now) { return healthNumber(todaysHealth().hrvMs); }
 
@@ -137,16 +132,27 @@ static String restingHeartRateText(time_t now) { return healthNumber(todaysHealt
 
 static String healthNumber(int number) { return number == HEALTH_MISSING ? "--" : String(number); }
 
-// MARK: Placeholder
+// MARK: Sleep
 
-// Until Vojto decides what goes here
-const GridCell PLACEHOLDER[GRID_CELLS] = {
-    {nullptr, 0, [](time_t) { return String("One"); }},
-    {nullptr, 0, [](time_t) { return String("Two"); }},
-    {nullptr, 0, [](time_t) { return String("Three"); }},
-    {nullptr, 0, [](time_t) { return String("Four"); }},
-    {nullptr, 0, [](time_t) { return String("Five"); }},
-    {nullptr, 0, [](time_t) { return String("Six"); }},
+// Last night and the average night of this week so far, then of the four weeks before
+const GridCell SLEEP[GRID_CELLS] = {
+    {nullptr, 0, sleepText, "night"},
+    {nullptr, 0, [](time_t) { return weekSleepText(0); }, "this wk"},
+    {nullptr, 0, [](time_t) { return weekSleepText(1); }, "1w ago"},
+    {nullptr, 0, [](time_t) { return weekSleepText(2); }, "2w ago"},
+    {nullptr, 0, [](time_t) { return weekSleepText(3); }, "3w ago"},
+    {nullptr, 0, [](time_t) { return weekSleepText(4); }, "4w ago"},
 };
 
-static void showPlaceholder(bool isFirstDraw, time_t now) { showGrid(PLACEHOLDER, isFirstDraw, now); }
+static void showSleep(bool isFirstDraw, time_t now) { showGrid(SLEEP, isFirstDraw, now); }
+
+// 0 is this week, 1 the week before
+static String weekSleepText(int week) { return hoursAndMinutes(todaysHealth().weeklySleepMinutes[week]); }
+
+// "7:24"
+static String hoursAndMinutes(int minutes) {
+  if (minutes == HEALTH_MISSING) return "--";
+  char text[12];
+  snprintf(text, sizeof(text), "%d:%02d", minutes / 60, minutes % 60);
+  return text;
+}
