@@ -3,6 +3,7 @@
 #include <M5Unified.h>
 #include "network.h"
 #include "sessions.h"
+#include "slides.h"
 
 /*
  * Lets tools/screenshot.py drive the device over serial, so the drawing can be
@@ -34,6 +35,7 @@ void debugLoop() {
   else if (command == 'w') fakeSession(63, 25 * 60);                 // warning chime in 3s, start in 63s
   else if (command == 'n') fakeSession(2 * 3600 + 23 * 60, 50 * 60); // clock with a next session
   else if (command == 'e') setSessions(nullptr, 0);                  // clock, nothing booked
+  else if (command == 't') nextSlide();                              // the next slide, like a tap
   else if (command == 's') return sendScreenshot();
   else return;
   Serial.printf("OK %c\n", command);

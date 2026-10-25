@@ -4,12 +4,13 @@
 #include "network.h"
 #include "screens.h"
 #include "sessions.h"
+#include "slides.h"
 
 /*
  * Focusmate session display for an M5Stack Core2. The loop looks at the
  * session that is running or comes next and decides everything from it: which
  * screen to show (a pie during a session, a countdown before one, otherwise a
- * dashboard) and when to chime and tick.
+ * the slides) and when to chime and tick.
  */
 
 #define COUNTDOWN_S 600     // a session starting within this gets the countdown
@@ -23,12 +24,9 @@
 #define TICK_MS 4
 #define TICK_CHANNEL 0      // the chimes take free channels from 7 down
 #define LOOP_MS 20          // short, so the ticks land evenly
-#define TAP_HZ 2000         // the click that confirms a tap
-#define TAP_MS 15
 
 static void playChimes(const Session &session, time_t now);
 static void playTick(const Session &session, time_t now);
-static void refreshOnTap();
 static void playNotes(std::initializer_list<int> frequencies);
 
 void setup() {
@@ -49,7 +47,6 @@ void setup() {
 void loop() {
   M5.update();
   debugLoop();
-  refreshOnTap();
   time_t now = time(nullptr);
   Session session = currentSession(now);
   // Before the drawing, which takes a while when the pie moves
@@ -57,7 +54,7 @@ void loop() {
 
   if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session));
   else if (session.isStartingWithin(COUNTDOWN_S, now)) showCountdown(session.start - now, blockPosition(session));
-  else showDashboard(now, todaysHealth(), fetchProblem());
+  else showSlides(now, fetchProblem());
 
   playChimes(session, now);
   delay(LOOP_MS);
@@ -90,13 +87,6 @@ static void playTick(const Session &session, time_t now) {
   if (!session.isRunning(now) || now == tickedAt) return;
   tickedAt = now;
   M5.Speaker.tone(TICK_HZ, TICK_MS, TICK_CHANNEL);
-}
-
-// A tap anywhere on the screen fetches the sessions right away
-static void refreshOnTap() {
-  if (!M5.Touch.getDetail().wasPressed()) return;
-  M5.Speaker.tone(TAP_HZ, TAP_MS);
-  refreshSessions();
 }
 
 // Frequencies in Hz

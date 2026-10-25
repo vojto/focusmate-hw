@@ -1,17 +1,12 @@
 #pragma once
-#include "health.h"
 #include "sessions.h"
 
 /*
- * The three screens the main loop chooses from. Each show function can be
- * called on every loop: it clears the display when coming from another screen
- * and afterwards redraws only what changed.
+ * The screens around a session; between sessions the slides take over (see
+ * slides.h). Each show function can be called on every loop: it clears the
+ * display when coming from another screen and afterwards redraws only what
+ * changed.
  */
-
-// Between sessions: a grid of the date, the time and today's steps, sleep, HRV
-// and resting heart rate, each with an icon. A notice, when there is one, is
-// an orange bar across the top.
-void showDashboard(time_t now, const Health &health, const char *notice);
 
 // The time left as minutes:seconds in the middle, with "Session in" in the
 // bottom left corner and the coming session's position in its block in the
