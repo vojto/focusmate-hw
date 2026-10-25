@@ -4,15 +4,16 @@
 const uint32_t DIVIDER_GRAY = 0x444441;
 
 #define COLUMNS 2
-#define ROWS 3
 #define CELL_WIDTH 160
-#define CELL_HEIGHT 80
 #define CELL_PADDING 12
 #define ICON_GAP 8              // between the icon and the value
 #define TEXT_BOX_HEIGHT 40      // what gets cleared around a value
 #define UNIT_GAP 3              // between a value and its unit, like "48 ms"
 #define VALUE_BASELINE 12       // below a cell's center, about half the cap height
 
+static int rows = 3;  // set by drawGridLines; 3 rows are 80px, 4 are 60px
+
+static int cellHeight();
 static void drawIcon(int index, const GridCell &cell);
 static void drawValue(int index, int textLeft, const String &value, uint32_t color, const char *unit, const String &label);
 
@@ -30,15 +31,18 @@ void drawGridValue(int index, const String &value, uint32_t color, const String 
   drawValue(index, CELL_PADDING, value, color, "", label);
 }
 
-void drawGridLines() {
+void drawGridLines(int rowCount) {
+  rows = rowCount;
   for (int x = CELL_WIDTH; x < COLUMNS * CELL_WIDTH; x += CELL_WIDTH) M5.Display.drawFastVLine(x, 0, M5.Display.height(), DIVIDER_GRAY);
-  for (int y = CELL_HEIGHT; y < ROWS * CELL_HEIGHT; y += CELL_HEIGHT) M5.Display.drawFastHLine(0, y, M5.Display.width(), DIVIDER_GRAY);
+  for (int row = 1; row < rows; row++) M5.Display.drawFastHLine(0, row * cellHeight(), M5.Display.width(), DIVIDER_GRAY);
 }
+
+static int cellHeight() { return M5.Display.height() / rows; }
 
 // The icon's coverage blended onto the black background in its color
 static void drawIcon(int index, const GridCell &cell) {
   int left = index % COLUMNS * CELL_WIDTH + CELL_PADDING;
-  int top = index / COLUMNS * CELL_HEIGHT + (CELL_HEIGHT - ICON_SIZE) / 2;
+  int top = index / COLUMNS * cellHeight() + (cellHeight() - ICON_SIZE) / 2;
   uint8_t red = cell.iconColor >> 16, green = cell.iconColor >> 8, blue = cell.iconColor;
   M5.Display.startWrite();
   for (int y = 0; y < ICON_SIZE; y++) {
@@ -57,7 +61,7 @@ static void drawValue(int index, int textLeft, const String &value, uint32_t col
 
   int cellLeft = index % COLUMNS * CELL_WIDTH;
   int left = cellLeft + textLeft;
-  int centerY = index / COLUMNS * CELL_HEIGHT + CELL_HEIGHT / 2;
+  int centerY = index / COLUMNS * cellHeight() + cellHeight() / 2;
   // Up to the cell's edge, short of the grid line
   M5.Display.fillRect(left, centerY - TEXT_BOX_HEIGHT / 2, CELL_WIDTH - textLeft - 2, TEXT_BOX_HEIGHT, BACKGROUND);
   int baseline = centerY + VALUE_BASELINE;

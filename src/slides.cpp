@@ -139,10 +139,10 @@ static String healthNumber(int number) { return number == HEALTH_MISSING ? "--" 
 
 // MARK: Sleep
 
-// Last night, then the average night of this week so far and of the four weeks
-// before it, each labeled with its week number
+// Last night, then the average night of this week so far and of the six weeks
+// before it, each labeled with its week number, in four rows
 static void showSleep(bool isFirstDraw, time_t now) {
-  if (isFirstDraw) drawGridLines();
+  if (isFirstDraw) drawGridLines(4);
   Health health = todaysHealth();
   drawGridValue(0, hoursAndMinutes(health.sleepMinutes), sleepColor(health.sleepMinutes), "night");
   for (int week = 0; week < SLEEP_WEEKS; week++) {

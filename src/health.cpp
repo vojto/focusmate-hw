@@ -26,7 +26,7 @@ static void averageSleep(JsonArray days, const char *today, int *weeklyMinutes);
 // Written by the fetch task, read by the main loop
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 static Health health = {HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING,
-                        {HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING}};
+                        {HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING}};
 
 void startFetchingHealth() { xTaskCreate(fetchTask, "health", TASK_STACK_BYTES, nullptr, 1, nullptr); }
 

@@ -6,7 +6,7 @@
  */
 
 #define HEALTH_MISSING -1  // a number Moonlite doesn't have (yet) for today
-#define SLEEP_WEEKS 5      // this week and the four before it
+#define SLEEP_WEEKS 7      // this week and the six before it
 
 struct Health {
   int steps;
