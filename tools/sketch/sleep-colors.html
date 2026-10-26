@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sleep Colors Sketch</title>
+<!--
+  A place to tune the sleep slide's colors before changing the firmware
+  (SLEEP_BUCKET_MINUTES and SLEEP_COLORS in src/slides.cpp). The screen is the
+  Core2's 320x240 sleep slide drawn scaled up, with the same week averages the
+  firmware computes. Real nights come from tools/out/sleep-data.js, made by
+  tools/sleep_data.py and gitignored; without it the sketch uses made-up nights.
+-->
+<style>
+  :root {
+    --bg: #f4f3ef; --ink: #1d1d1b; --muted: #6b6a64; --card: #fff; --line: #dcdad2;
+    --screen: #000; --white: #F1EFE8; --gray: #B4B2A9; --dim: #444441;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; --card: #222220; --line: #34342f; }
+  }
+  :root[data-theme="dark"] { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; --card: #222220; --line: #34342f; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 -apple-system, system-ui, sans-serif; }
+  main { display: flex; gap: 32px; padding: 24px 16px; flex-wrap: wrap; align-items: flex-start; }
+  aside { width: 260px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 10px; }
+  h1 { font-size: 15px; margin: 0; }
+  h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+  .note { color: var(--muted); font-size: 12px; margin: 0; }
+  input, select, button, textarea { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+  button { cursor: pointer; }
+  .bucket { display: grid; grid-template-columns: 34px 1fr 70px 28px; gap: 6px; align-items: center; font-size: 13px; }
+  .bucket input[type=color] { width: 34px; height: 28px; padding: 2px; }
+  .bucket input[type=text] { width: 70px; }
+  .bucket span { color: var(--muted); }
+  .bucket button { padding: 2px 0; color: var(--muted); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  textarea { width: 100%; height: 76px; font: 11px/1.4 ui-monospace, Menlo, monospace; resize: vertical; }
+  label { display: grid; gap: 2px; color: var(--muted); font-size: 12px; }
+
+  .device { display: grid; gap: 10px; }
+  .frame { width: 640px; max-width: calc(100vw - 52px); aspect-ratio: 4 / 3; border-radius: 14px; background: #2a2a28; overflow: hidden; box-shadow: 0 0 0 10px #2a2a28; margin: 10px; }
+
+  /* The device screen: 320x240 logical px, scaled up as a whole. FreeSans on the device is a Helvetica clone. */
+  .screen { width: 320px; height: 240px; background: var(--screen); color: var(--white); transform-origin: 0 0;
+            font-family: Helvetica, Arial, sans-serif; overflow: hidden;
+            display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: repeat(4, 1fr); }
+  .cell { display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--dim); }
+  .cell:nth-child(odd) { border-right: 1px solid var(--dim); }
+  .cell:nth-last-child(-n+2) { border-bottom: 0; }
+  .value { font-size: 28px; white-space: nowrap; }
+  .label { font-size: 14px; color: var(--gray); }
+
+  section { width: 100%; }
+  .nights { display: flex; flex-wrap: wrap; gap: 4px; background: #000; padding: 10px; border-radius: 10px; }
+  .night { width: 64px; padding: 4px 0; text-align: center; font: 15px Helvetica, Arial, sans-serif; border: 1px solid #222; border-radius: 4px; }
+  .night small { display: block; font-size: 10px; color: var(--gray); }
+  .night.empty { opacity: .35; }
+</style>
+</head>
+<body>
+<main>
+  <aside>
+    <h1>Sleep colors</h1>
+    <p class="note">Each color covers nights from its time up to the next one. Times are h:mm.</p>
+    <div id="buckets" style="display: grid; gap: 6px;"></div>
+    <div class="row">
+      <button id="add">Add color</button>
+      <button id="reset">Back to Moonlite's</button>
+    </div>
+    <label>For src/slides.cpp <textarea id="code" readonly></textarea></label>
+  </aside>
+
+  <div class="device">
+    <label>The slide as of <select id="asOf"></select></label>
+    <div class="frame"><div class="screen"></div></div>
+    <p class="note" id="source"></p>
+  </div>
+
+  <section>
+    <h2>Every night</h2>
+    <div class="nights"></div>
+  </section>
+</main>
+
+<script src="../out/sleep-data.js"></script>
+<script>
+// Moonlite's sleepColor: half-hour buckets, D3's RdYlGn with 7 colors. The first color has no start.
+const MOONLITE = [[null, '#d73027'], [330, '#fc8d59'], [360, '#fee08b'], [390, '#ffffbf'], [420, '#d9ef8b'], [450, '#91cf60'], [480, '#1a9850']];
+const WEEKS = 7;  // SLEEP_WEEKS
+const STORAGE_KEY = 'sleep-colors';
+
+const nights = typeof SLEEP_NIGHTS !== 'undefined' ? SLEEP_NIGHTS : madeUpNights();
+let buckets = load() || structuredClone(MOONLITE);
+
+// 444 -> "7:24"
+const formatMinutes = m => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+const parseMinutes = text => { const [h, m = 0] = text.split(':').map(Number); return h * 60 + m; };
+const minutesOf = seconds => seconds == null ? null : Math.floor(seconds / 60);
+const dateOf = text => new Date(`${text}T12:00:00`);
+
+// Like the firmware's sleepColor; missing nights are white
+function colorOf(minutes) {
+  if (minutes == null) return '#F1EFE8';
+  let bucket = 0;
+  while (bucket + 1 < buckets.length && minutes >= buckets[bucket + 1][0]) bucket++;
+  return buckets[bucket][1];
+}
+
+// Like the firmware's averageSleep: weeks from Monday, nights without data left out
+function weeklyMinutes(last) {
+  const daysSinceMonday = (dateOf(nights[last][0]).getDay() + 6) % 7;
+  return Array.from({ length: WEEKS }, (_, week) => {
+    const monday = last - daysSinceMonday - week * 7;
+    const known = nights.slice(Math.max(monday, 0), Math.min(monday + 6, last) + 1).map(n => n[1]).filter(s => s != null);
+    return known.length ? Math.floor(known.reduce((a, b) => a + b, 0) / known.length / 60) : null;
+  });
+}
+
+function isoWeek(date) {
+  const thursday = new Date(date); thursday.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  const firstThursday = new Date(thursday.getFullYear(), 0, 4);
+  return 1 + Math.round(((thursday - firstThursday) / 86400000 - 3 + (firstThursday.getDay() + 6) % 7) / 7);
+}
+
+const cell = (minutes, label) =>
+  `<div class="cell"><span class="value" style="color:${colorOf(minutes)}">${minutes == null ? '--' : formatMinutes(minutes)}</span><span class="label">${label}</span></div>`;
+
+function renderScreen() {
+  const last = Number(document.getElementById('asOf').value);
+  const today = dateOf(nights[last][0]);
+  const weeks = weeklyMinutes(last).map((minutes, week) => cell(minutes, `W${isoWeek(new Date(today - week * 7 * 86400000))}`));
+  document.querySelector('.screen').innerHTML = cell(minutesOf(nights[last][1]), 'night') + weeks.join('');
+  fit();
+}
+
+function renderNights() {
+  const first = nights.findIndex(n => n[1] != null);
+  document.querySelector('.nights').innerHTML = nights.slice(Math.max(first, 0)).map(([date, seconds]) => {
+    const minutes = minutesOf(seconds);
+    const day = dateOf(date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `<div class="night ${minutes == null ? 'empty' : ''}" style="color:${colorOf(minutes)}">${minutes == null ? '--' : formatMinutes(minutes)}<small>${day}</small></div>`;
+  }).join('');
+}
+
+function renderBuckets() {
+  document.getElementById('buckets').innerHTML = buckets.map(([from, color], i) => `
+    <div class="bucket">
+      <input type="color" value="${color}" data-i="${i}">
+      <span>${i == 0 ? 'under' : 'from'}</span>
+      ${i == 0 ? `<span>${buckets[1] ? formatMinutes(buckets[1][0]) : 'any'}</span>` : `<input type="text" value="${formatMinutes(from)}" data-i="${i}">`}
+      ${i == 0 ? '<span></span>' : `<button data-remove="${i}" title="Remove">×</button>`}
+    </div>`).join('');
+}
+
+function renderCode() {
+  const hex = c => `0x${c.slice(1).toUpperCase()}`;
+  document.getElementById('code').value =
+    `const int SLEEP_BUCKET_MINUTES[] = {${buckets.slice(1).map(b => b[0]).join(', ')}};\n` +
+    `const uint32_t SLEEP_COLORS[] = {${buckets.map(b => hex(b[1])).join(', ')}};`;
+}
+
+function render() {
+  renderScreen();
+  renderNights();
+  renderCode();
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(buckets)); } catch {}
+}
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; }
+}
+
+// Scales the 320x240 screen to fill its frame
+function fit() {
+  const screen = document.querySelector('.screen');
+  screen.style.transform = `scale(${screen.parentElement.clientWidth / 320})`;
+}
+
+// Three weeks of plausible nights, for when tools/out/sleep-data.js is missing
+function madeUpNights() {
+  const today = new Date();
+  return Array.from({ length: 28 }, (_, i) => {
+    const date = new Date(today - (27 - i) * 86400000);
+    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return [iso, i % 9 == 4 ? null : Math.round((5.5 + 2.5 * ((i * 37) % 10) / 10) * 3600)];
+  });
+}
+
+const asOf = document.getElementById('asOf');
+asOf.innerHTML = nights.map(([date], i) => `<option value="${i}">${date}</option>`).reverse().join('');
+document.getElementById('source').textContent = typeof SLEEP_NIGHTS !== 'undefined'
+  ? `Your nights from Moonlite, ${nights[0][0]} to ${nights.at(-1)[0]}. Refresh with python3 tools/sleep_data.py.`
+  : 'Made-up nights: run python3 tools/sleep_data.py for real ones.';
+
+const bucketList = document.getElementById('buckets');
+bucketList.addEventListener('input', event => {
+  const i = Number(event.target.dataset.i);
+  if (event.target.type == 'color') buckets[i][1] = event.target.value;
+  else {
+    const minutes = parseMinutes(event.target.value);
+    if (Number.isNaN(minutes)) return;
+    buckets[i][0] = minutes;
+  }
+  render();
+});
+// Keeps the times in order once a field is left
+bucketList.addEventListener('change', () => {
+  buckets = [buckets[0], ...buckets.slice(1).sort((a, b) => a[0] - b[0])];
+  renderBuckets();
+  render();
+});
+bucketList.addEventListener('click', event => {
+  if (!event.target.dataset.remove) return;
+  buckets.splice(Number(event.target.dataset.remove), 1);
+  renderBuckets();
+  render();
+});
+document.getElementById('add').addEventListener('click', () => {
+  const lastFrom = buckets.length > 1 ? buckets.at(-1)[0] : 360;
+  buckets.push([lastFrom + 30, buckets.at(-1)[1]]);
+  renderBuckets();
+  render();
+});
+document.getElementById('reset').addEventListener('click', () => {
+  buckets = structuredClone(MOONLITE);
+  renderBuckets();
+  render();
+});
+asOf.addEventListener('change', renderScreen);
+addEventListener('resize', fit);
+renderBuckets();
+render();
+</script>
+</body>
+</html>
