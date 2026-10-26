@@ -67,7 +67,7 @@
     <div id="buckets" style="display: grid; gap: 6px;"></div>
     <div class="row">
       <button id="add">Add color</button>
-      <button id="reset">Back to Moonlite's</button>
+      <button id="reset">Reset</button>
     </div>
     <label>For src/slides.cpp <textarea id="code" readonly></textarea></label>
   </aside>
@@ -86,13 +86,13 @@
 
 <script src="../out/sleep-data.js"></script>
 <script>
-// Moonlite's sleepColor: half-hour buckets, D3's RdYlGn with 7 colors. The first color has no start.
-const MOONLITE = [[null, '#d73027'], [330, '#fc8d59'], [360, '#fee08b'], [390, '#ffffbf'], [420, '#d9ef8b'], [450, '#91cf60'], [480, '#1a9850']];
+// Warm for short nights, cool for long ones, yellow in the middle (6:00-6:30),
+// and every step about as bright on black, made in OKLCH. The first color has no start.
+const SCALE = [[null, '#FC5855'], [330, '#FF9044'], [360, '#FBD530'], [390, '#ADE74E'], [420, '#59DE65'], [450, '#29D5A5']];
 const WEEKS = 7;  // SLEEP_WEEKS
-const STORAGE_KEY = 'sleep-colors';
 
 const nights = typeof SLEEP_NIGHTS !== 'undefined' ? SLEEP_NIGHTS : madeUpNights();
-let buckets = load() || structuredClone(MOONLITE);
+let buckets = structuredClone(SCALE);
 
 // 444 -> "7:24"
 const formatMinutes = m => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
@@ -165,11 +165,6 @@ function render() {
   renderScreen();
   renderNights();
   renderCode();
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(buckets)); } catch {}
-}
-
-function load() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch { return null; }
 }
 
 // Scales the 320x240 screen to fill its frame
@@ -224,7 +219,7 @@ document.getElementById('add').addEventListener('click', () => {
   render();
 });
 document.getElementById('reset').addEventListener('click', () => {
-  buckets = structuredClone(MOONLITE);
+  buckets = structuredClone(SCALE);
   renderBuckets();
   render();
 });
