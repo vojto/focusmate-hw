@@ -5,7 +5,7 @@ A desk display for [Focusmate](https://www.focusmate.com) sessions on an M5Stack
 ![The three screens, captured from the device](docs/screens.png)
 
 - **In session:** a pie that starts full and empties clockwise a minute at a time, inside a ring with a tick per minute. The tick of the running minute is red. The bottom left corner shows the time left, like 0:15. When several sessions are booked back to back, the bottom right shows which one is running, like 3⁄4.
-- **Session starts within an hour:** a countdown.
+- **Session starts within 5 minutes:** a countdown.
 - **Otherwise:** a dashboard, a grid with the date, the time and today's steps (6.1k), sleep (8:03), HRV and resting heart rate, each marked by an icon instead of a label. The health numbers come from [Moonlite](https://moonlite.im), which syncs them from Garmin.
 
 The speaker plays two rising notes one minute before a session and three notes when it starts, and ticks quietly every second while it runs. Two descending notes at the same volume sound one minute before it ends.

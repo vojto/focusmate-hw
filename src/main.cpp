@@ -13,7 +13,7 @@
  * the slides) and when to chime and tick.
  */
 
-#define COUNTDOWN_S 600     // a session starting within this gets the countdown
+#define COUNTDOWN_S 300     // a session starting within this gets the countdown
 #define WARNING_S 60        // the first chime plays this long before the start
 #define END_WARNING_S 60    // two descending notes this long before the end
 #define START_CHIME_S 10    // the start chime is skipped once the session is further in than this
