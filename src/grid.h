@@ -26,6 +26,10 @@ void showGrid(const GridCell (&cells)[GRID_CELLS], bool isFirstDraw, time_t now)
 // also set how many rows the cells are laid out in
 void drawGridLines(int rowCount = 3);
 
+// Fills a cell, short of its lines, for a slide that sets one apart; pass the
+// same background to drawGridValue
+void fillGridCell(int index, uint32_t background);
+
 // A colored value at the cell's left edge, without an icon, and a small gray
 // label at its right edge. Redrawn only when it changes.
-void drawGridValue(int index, const String &value, uint32_t color, const String &label);
+void drawGridValue(int index, const String &value, uint32_t color, const String &label, uint32_t background = BACKGROUND);

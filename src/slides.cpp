@@ -14,10 +14,12 @@
 
 const uint32_t NOTICE_ORANGE = 0xEF9F27;
 const uint32_t STEPS_GREEN = 0x5DCAA5, SLEEP_BLUE = 0x85B7EB, HRV_PINK = 0xED93B1, RHR_RED = 0xE24B4A;
-// Sleep in half-hour buckets, red (short nights) to green, like Moonlite's
-// sleepColor: D3's RdYlGn scheme with 7 colors, which reads fine on black
+// Sleep in half-hour buckets: warm for short nights, yellow in the middle
+// (6:00-6:30), green from 6:30 and sky blue from 8:00, each about as bright
+// on black (made in OKLCH; see tools/sketch/sleep-colors.html)
 const int SLEEP_BUCKET_MINUTES[] = {330, 360, 390, 420, 450, 480};
-const uint32_t SLEEP_COLORS[] = {0xD73027, 0xFC8D59, 0xFEE08B, 0xFFFFBF, 0xD9EF8B, 0x91CF60, 0x1A9850};
+const uint32_t SLEEP_COLORS[] = {0xFC5855, 0xFF9044, 0xFBD530, 0xADE74E, 0x59DE65, 0x29D5A5, 0x30C0F8};
+const uint32_t RECENT_GRAY = 0x222220;  // behind the first row, last night and this week
 
 #define SLIDE_MS 60000          // how long a slide stays
 #define TAP_HZ 2000             // the click that confirms a tap
@@ -142,12 +144,15 @@ static String healthNumber(int number) { return number == HEALTH_MISSING ? "--" 
 // Last night, then the average night of this week so far and of the six weeks
 // before it, each labeled with its week number, in four rows
 static void showSleep(bool isFirstDraw, time_t now) {
-  if (isFirstDraw) drawGridLines(4);
+  if (isFirstDraw) {
+    drawGridLines(4);
+    for (int cell : {0, 1}) fillGridCell(cell, RECENT_GRAY);
+  }
   Health health = todaysHealth();
-  drawGridValue(0, hoursAndMinutes(health.sleepMinutes), sleepColor(health.sleepMinutes), "night");
+  drawGridValue(0, hoursAndMinutes(health.sleepMinutes), sleepColor(health.sleepMinutes), "night", RECENT_GRAY);
   for (int week = 0; week < SLEEP_WEEKS; week++) {
     int minutes = health.weeklySleepMinutes[week];
-    drawGridValue(week + 1, hoursAndMinutes(minutes), sleepColor(minutes), weekLabel(now, week));
+    drawGridValue(week + 1, hoursAndMinutes(minutes), sleepColor(minutes), weekLabel(now, week), week == 0 ? RECENT_GRAY : BACKGROUND);
   }
 }
 
