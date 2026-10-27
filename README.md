@@ -8,6 +8,8 @@ A desk display for [Focusmate](https://www.focusmate.com) sessions on an M5Stack
 - **Session starts within 10 minutes:** a countdown.
 - **Otherwise:** a dashboard, a grid with the date, the time and today's steps (6.1k), sleep (8:03), HRV and resting heart rate, each marked by an icon instead of a label. The health numbers come from [Moonlite](https://moonlite.im), which syncs them from Garmin.
 
+Tapping the screen moves to the next slide. During a session or its countdown, a tap shows the slides instead; keep tapping to go through them and back to the session, which also comes back by itself 10 seconds after the last tap.
+
 The speaker plays two rising notes one minute before a session and three notes when it starts, and ticks quietly every second while it runs. Two descending notes at the same volume sound one minute before it ends.
 
 ## Setup
