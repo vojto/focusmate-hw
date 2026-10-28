@@ -53,6 +53,8 @@
 <script>
 const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 8, LABEL_WIDTH = 44, BAR_HEIGHT = 22, VALUE_SIZE = 20;
 const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB', DIM = '#444441', GREEN = '#59DE65', RED = '#FC5855';  // BLUE is SLEEP_BLUE on the dashboard
+// Light to heavy, from the sleep slide's colors (similar brightness on black)
+const WEIGHT_COLORS = ['#59DE65', '#ADE74E', '#FBD530', '#FF9044', '#FC5855'];
 const VALUE_BLUE = '#B5D4F4';  // the weights, a paler BLUE
 const CHEVRON_SIZE = 4, CHEVRON_GAP = 7;  // half its height, and the space on each side
 const CHANGE_WEEKS = 8, CHANGE_SCALE_STEP = 0.5;  // rows, and the widest bar rounded up to this many kilos
@@ -81,12 +83,14 @@ function render(svg) {
   const x0 = PADDING + LABEL_WIDTH;
   const x = d3.scaleLinear().domain([Math.floor(d3.min(known)) - 1, Math.ceil(d3.max(known))]).range([x0, WIDTH - PADDING - 8 - valueWidth]);
   const rowHeight = HEIGHT / ROWS;
+  // The lightest week shown is green, the heaviest red
+  const color = d3.scaleLinear().domain(d3.extent(known)).range([0, 1]).clamp(true).interpolate(() => d3.piecewise(d3.interpolateLab, WEIGHT_COLORS));
 
   const row = svg.selectAll('g.row').data(rows).join('g').attr('class', 'row').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
   row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
   row.selectAll('rect').data(d => segments(x.domain()[0], d.kg)).join('rect')
     .attr('x', ([from]) => x(from) + 1).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
-    .attr('width', ([from, to]) => Math.max(x(to) - x(from) - 2, 1)).attr('rx', 3).attr('fill', BLUE);
+    .attr('width', ([from, to]) => Math.max(x(to) - x(from) - 2, 1)).attr('rx', 3).attr('fill', function () { return color(d3.select(this.parentNode).datum().kg); });
   row.append('text').attr('x', d => (d.kg == null ? x0 : x(d.kg)) + 8).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', VALUE_BLUE)
     .text(d => d.kg == null ? '--' : d.kg.toFixed(1))
     .filter(d => d.today != null).each(function (d) { drawToday(d3.select(this.parentNode), this, d.today); });
