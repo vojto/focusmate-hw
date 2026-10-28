@@ -53,6 +53,7 @@
 <script>
 const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 8, LABEL_WIDTH = 44, BAR_HEIGHT = 22, VALUE_SIZE = 22;
 const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB', DIM = '#444441', GREEN = '#59DE65', RED = '#FC5855';  // BLUE is SLEEP_BLUE on the dashboard
+const CHEVRON_SIZE = 4, CHEVRON_GAP = 7;  // half its height, and the space on each side
 const CHANGE_WEEKS = 8, CHANGE_SCALE_STEP = 0.5;  // rows, and the widest bar rounded up to this many kilos
 
 const data = typeof WEIGHTS !== 'undefined' ? WEIGHTS : madeUpWeights();
@@ -87,8 +88,15 @@ function render(svg) {
     .attr('width', ([from, to]) => Math.max(x(to) - x(from) - 2, 1)).attr('rx', 3).attr('fill', BLUE);
   row.append('text').attr('x', d => (d.kg == null ? x0 : x(d.kg)) + 8).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', WHITE)
     .text(d => d.kg == null ? '--' : d.kg.toFixed(1))
-    .filter(d => d.today != null).append('tspan').attr('fill', GRAY).text(' → ')
-    .append('tspan').attr('fill', WHITE).text(d => d.today.toFixed(1));
+    .filter(d => d.today != null).each(function (d) { drawToday(d3.select(this.parentNode), this, d.today); });
+}
+
+// A small gray chevron after the week's average, then today's weigh-in
+function drawToday(row, average, kg) {
+  const x = +average.getAttribute('x') + average.getComputedTextLength() + CHEVRON_GAP;
+  row.append('path').attr('d', `M${x},${-CHEVRON_SIZE} L${x + CHEVRON_SIZE},0 L${x},${CHEVRON_SIZE}`)
+    .attr('fill', 'none').attr('stroke', GRAY).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+  row.append('text').attr('x', x + CHEVRON_SIZE + CHEVRON_GAP).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', WHITE).text(kg.toFixed(1));
 }
 
 // A bar as [from, to] pieces of half a kilo each, the last one cut at the
