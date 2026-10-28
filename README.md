@@ -32,7 +32,7 @@ pio run -t upload
 
 - A background task asks `GET /v1/sessions` for the next 24 hours once a minute. A session you book or cancel shows up within a minute.
 - Another task asks Moonlite's `GET /api/v1/stats/today` every 5 minutes for the health numbers. A number Moonlite doesn't have yet shows as `--`.
-- A third task asks Foodmark's `GET /external/weights` every 5 minutes for today's weight and the weekly averages. The weight slide colors each one by the change from the week before: white for none, fading to green for a loss and red for a gain, full at half a kilo.
+- A third task asks Foodmark's `GET /external/weights` every 5 minutes for today's weight and the weekly averages. The weight slide shows this week and the seven before as bars of half-kilo segments, green for the lightest week shown to red for the heaviest, with today's weigh-in after this week's average.
 - The pie and the countdown run off the device's clock, which is synced from the internet, so they keep going between requests.
 - The pie and its ticks are drawn at twice their size into an off-screen canvas in the Core2's PSRAM and shrunk onto the screen, which smooths their edges.
 - The dashboard draws straight onto the screen, at full brightness all the time.

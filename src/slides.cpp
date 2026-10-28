@@ -20,10 +20,10 @@ const uint32_t STEPS_GREEN = 0x5DCAA5, SLEEP_BLUE = 0x85B7EB, HRV_PINK = 0xED93B
 // on black (made in OKLCH; see tools/sketch/sleep-colors.html)
 const int SLEEP_BUCKET_MINUTES[] = {330, 360, 390, 420, 450, 480};
 const uint32_t SLEEP_COLORS[] = {0xFC5855, 0xFF9044, 0xFBD530, 0xADE74E, 0x59DE65, 0x29D5A5, 0x30C0F8};
-// Weight against the week before: white for no change, fading to green for a
-// loss and red for a gain, full at half a kilo
-const uint32_t WEIGHT_GREEN = 0x59DE65, WEIGHT_RED = 0xFC5855;
-#define WEIGHT_FULL_COLOR_GRAMS 500
+// Weight bars, lightest week shown to heaviest: the sleep colors from green
+// to red (see tools/sketch/weight-bars.html)
+const uint32_t WEIGHT_COLORS[] = {0x59DE65, 0xADE74E, 0xFBD530, 0xFF9044, 0xFC5855};
+const int WEIGHT_COLOR_COUNT = sizeof(WEIGHT_COLORS) / sizeof(WEIGHT_COLORS[0]);
 const uint32_t RECENT_GRAY = 0x222220;  // behind the first row, last night and this week
 
 #define SLIDE_MS 60000          // how long a slide stays
@@ -31,10 +31,23 @@ const uint32_t RECENT_GRAY = 0x222220;  // behind the first row, last night and 
 #define TAP_MS 15
 #define NOTICE_HEIGHT 20        // a bar across the top, above the first row's text
 
+// The weight slide: a row per week, a bar of half-kilo segments and the weight
+#define WEIGHT_ROW_HEIGHT 30    // 240 / WEIGHT_WEEKS
+#define WEIGHT_BAR_HEIGHT 26
+#define WEIGHT_PADDING 12
+#define WEIGHT_BAR_LEFT 56      // after the week labels
+#define WEIGHT_VALUE_GAP 8      // between a bar and its weight
+#define WEIGHT_SEGMENT_GRAMS 500
+#define WEIGHT_SEGMENT_GAP 2
+#define WEIGHT_SEGMENT_RADIUS 3
+#define CHEVRON_SIZE 4          // half its height
+#define CHEVRON_GAP 7           // on each side of it
+
 #define BIRTH_TIME 681343200     // 5 Aug 1991, midnight in Bratislava
 #define SECONDS_PER_YEAR (365.2425 * 86400)
 
 static void showSlide(int index);
+static void redrawSlide();
 static void drawNotice(const char *notice);
 static void showDashboard(bool isFirstDraw, time_t now);
 static void showSleep(bool isFirstDraw, time_t now);
@@ -49,8 +62,12 @@ static String weekLabel(time_t now, int week);
 static uint32_t sleepColor(int minutes);
 static String hoursAndMinutes(int minutes);
 static void showWeight(bool isFirstDraw, time_t now);
+static void drawWeightRow(int row, int grams, int todayGrams, int lightest, int heaviest, time_t now);
+static int drawWeightBar(int y, int grams, int lightest, int heaviest);
+static int drawWeightValue(int x, int y, int grams, uint32_t color);
+static void drawChevron(int x, int y);
 static String kilograms(int grams);
-static uint32_t weightColor(int grams, int lastWeekGrams);
+static uint32_t weightColor(int grams, int lightest, int heaviest);
 static uint32_t blend(uint32_t from, uint32_t to, float amount);
 
 typedef void (*Slide)(bool isFirstDraw, time_t now);
@@ -58,6 +75,7 @@ const Slide SLIDES[] = {showDashboard, showSleep, showWeight};
 const int SLIDE_COUNT = sizeof(SLIDES) / sizeof(SLIDES[0]);
 
 static int slide = 0;
+static bool isRedrawWanted = false;
 static uint32_t slideShownAt = 0;
 
 // MARK: Taking turns
@@ -73,8 +91,9 @@ void showSlides(time_t now, const char *notice) {
 
   bool isFirstDraw = enterScreen(SCREEN_SLIDE + slide);
   // The notice bar crosses the slide, so a change redraws everything
-  if (shownNotice != notice) {
+  if (shownNotice != notice || isRedrawWanted) {
     shownNotice = notice;
+    isRedrawWanted = false;
     clearScreen();
     isFirstDraw = true;
   }
@@ -88,6 +107,10 @@ static void showSlide(int index) {
   slide = index;
   slideShownAt = millis();
 }
+
+// For a slide whose drawing can't be updated in place: everything is drawn
+// again on the next loop, the notice too
+static void redrawSlide() { isRedrawWanted = true; }
 
 static void drawNotice(const char *notice) {
   if (!*notice) return;
@@ -193,32 +216,96 @@ static String hoursAndMinutes(int minutes) {
 
 // MARK: Weight
 
-// This morning's weight, then the average of this week so far and of the six
-// weeks before it, each colored by the change from the week before
+static Weight shownWeight;
+
+// The average weight of this week and the seven before it, as bars that start
+// a kilo under the lightest week (from zero they would all look the same),
+// colored from green for the lightest to red for the heaviest. This week's
+// average is followed by a chevron and today's weigh-in.
 static void showWeight(bool isFirstDraw, time_t now) {
-  if (isFirstDraw) {
-    drawGridLines(4);
-    for (int cell : {0, 1}) fillGridCell(cell, RECENT_GRAY);
-  }
   Weight weight = latestWeight();
-  drawGridValue(0, kilograms(weight.todayGrams), weightColor(weight.todayGrams, weight.weeklyGrams[1]), "today", RECENT_GRAY);
-  for (int week = 0; week < WEIGHT_WEEKS - 1; week++) {
-    int grams = weight.weeklyGrams[week];
-    drawGridValue(week + 1, kilograms(grams), weightColor(grams, weight.weeklyGrams[week + 1]), weekLabel(now, week), week == 0 ? RECENT_GRAY : BACKGROUND);
+  if (!isFirstDraw) {
+    if (memcmp(&weight, &shownWeight, sizeof(weight)) != 0) redrawSlide();
+    return;
   }
+  shownWeight = weight;
+  int lightest = INT_MAX, heaviest = 0;
+  for (int grams : weight.weeklyGrams) {
+    if (grams == WEIGHT_MISSING) continue;
+    lightest = min(lightest, grams);
+    heaviest = max(heaviest, grams);
+  }
+  for (int week = 0; week < WEIGHT_WEEKS; week++) {
+    drawWeightRow(week, weight.weeklyGrams[week], week == 0 ? weight.todayGrams : WEIGHT_MISSING, lightest, heaviest, now);
+  }
+}
+
+// The week's label, bar and weight. With today's weigh-in, the week's weight
+// turns gray and today's follows it after a chevron.
+static void drawWeightRow(int row, int grams, int todayGrams, int lightest, int heaviest, time_t now) {
+  int y = row * WEIGHT_ROW_HEIGHT + WEIGHT_ROW_HEIGHT / 2;
+  M5.Display.setFont(&fonts::FreeSans9pt7b);
+  M5.Display.setTextColor(TEXT_GRAY, BACKGROUND);
+  M5.Display.setTextDatum(middle_left);
+  M5.Display.setTextPadding(0);
+  M5.Display.drawString(weekLabel(now, row), WEIGHT_PADDING, y);
+  int x = drawWeightBar(y, grams, lightest, heaviest);
+  if (todayGrams == WEIGHT_MISSING) {
+    drawWeightValue(x, y, grams, TEXT_WHITE);
+    return;
+  }
+  x = drawWeightValue(x, y, grams, TEXT_GRAY) + CHEVRON_GAP;
+  drawChevron(x, y);
+  drawWeightValue(x + CHEVRON_SIZE + CHEVRON_GAP - WEIGHT_VALUE_GAP, y, todayGrams, TEXT_WHITE);
+}
+
+// Half-kilo segments, the last one cut at the weight rounded to 100 g.
+// Returns where the bar ends.
+static int drawWeightBar(int y, int grams, int lightest, int heaviest) {
+  if (grams == WEIGHT_MISSING) return WEIGHT_BAR_LEFT;
+  M5.Display.setFont(&fonts::FreeSans12pt7b);
+  int start = (lightest / 1000 - 1) * 1000;
+  int end = (heaviest + 999) / 1000 * 1000;
+  int right = M5.Display.width() - WEIGHT_PADDING - WEIGHT_VALUE_GAP - M5.Display.textWidth("109.0");
+  auto x = [&](int g) { return WEIGHT_BAR_LEFT + (int)lroundf((g - start) * (right - WEIGHT_BAR_LEFT) / (float)(end - start)); };
+
+  int rounded = (grams + 50) / 100 * 100;
+  uint32_t color = weightColor(grams, lightest, heaviest);
+  for (int from = start; from < rounded; from += WEIGHT_SEGMENT_GRAMS) {
+    int left = x(from) + WEIGHT_SEGMENT_GAP / 2;
+    int width = max(x(min(from + WEIGHT_SEGMENT_GRAMS, rounded)) - left - WEIGHT_SEGMENT_GAP / 2, 1);
+    M5.Display.fillSmoothRoundRect(left, y - WEIGHT_BAR_HEIGHT / 2, width, WEIGHT_BAR_HEIGHT, WEIGHT_SEGMENT_RADIUS, color);
+  }
+  return x(rounded);
+}
+
+// After a gap; returns where the text ends
+static int drawWeightValue(int x, int y, int grams, uint32_t color) {
+  M5.Display.setFont(&fonts::FreeSans12pt7b);
+  M5.Display.setTextColor(color, BACKGROUND);
+  M5.Display.setTextDatum(middle_left);
+  M5.Display.setTextPadding(0);
+  x += WEIGHT_VALUE_GAP;
+  return x + M5.Display.drawString(kilograms(grams), x, y);
+}
+
+static void drawChevron(int x, int y) {
+  M5.Display.drawWideLine(x, y - CHEVRON_SIZE, x + CHEVRON_SIZE, y, 1, TEXT_GRAY);
+  M5.Display.drawWideLine(x + CHEVRON_SIZE, y, x, y + CHEVRON_SIZE, 1, TEXT_GRAY);
 }
 
 // "107.1"
 static String kilograms(int grams) {
   if (grams == WEIGHT_MISSING) return "--";
-  return String(grams / 1000.0, 1);
+  int tenths = (grams + 50) / 100;  // rounded like the bar's end
+  return String(tenths / 10) + "." + String(tenths % 10);
 }
 
-static uint32_t weightColor(int grams, int lastWeekGrams) {
-  if (grams == WEIGHT_MISSING || lastWeekGrams == WEIGHT_MISSING) return TEXT_WHITE;
-  int change = grams - lastWeekGrams;
-  float amount = min(abs(change), WEIGHT_FULL_COLOR_GRAMS) / (float)WEIGHT_FULL_COLOR_GRAMS;
-  return blend(TEXT_WHITE, change < 0 ? WEIGHT_GREEN : WEIGHT_RED, amount);
+static uint32_t weightColor(int grams, int lightest, int heaviest) {
+  if (heaviest == lightest) return WEIGHT_COLORS[0];
+  float position = (grams - lightest) / (float)(heaviest - lightest) * (WEIGHT_COLOR_COUNT - 1);
+  int from = min((int)position, WEIGHT_COLOR_COUNT - 2);
+  return blend(WEIGHT_COLORS[from], WEIGHT_COLORS[from + 1], position - from);
 }
 
 // amount 0 is from, 1 is to
