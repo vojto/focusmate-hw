@@ -3,6 +3,7 @@
 #include "health.h"
 #include "icons.h"
 #include "network.h"
+#include "weight.h"
 
 /*
  * The slides and the turns they take. Each slide is a function drawn like the
@@ -19,6 +20,10 @@ const uint32_t STEPS_GREEN = 0x5DCAA5, SLEEP_BLUE = 0x85B7EB, HRV_PINK = 0xED93B
 // on black (made in OKLCH; see tools/sketch/sleep-colors.html)
 const int SLEEP_BUCKET_MINUTES[] = {330, 360, 390, 420, 450, 480};
 const uint32_t SLEEP_COLORS[] = {0xFC5855, 0xFF9044, 0xFBD530, 0xADE74E, 0x59DE65, 0x29D5A5, 0x30C0F8};
+// Weight against the week before: white for no change, fading to green for a
+// loss and red for a gain, full at half a kilo
+const uint32_t WEIGHT_GREEN = 0x59DE65, WEIGHT_RED = 0xFC5855;
+#define WEIGHT_FULL_COLOR_GRAMS 500
 const uint32_t RECENT_GRAY = 0x222220;  // behind the first row, last night and this week
 
 #define SLIDE_MS 60000          // how long a slide stays
@@ -43,9 +48,13 @@ static String healthNumber(int number);
 static String weekLabel(time_t now, int week);
 static uint32_t sleepColor(int minutes);
 static String hoursAndMinutes(int minutes);
+static void showWeight(bool isFirstDraw, time_t now);
+static String kilograms(int grams);
+static uint32_t weightColor(int grams, int lastWeekGrams);
+static uint32_t blend(uint32_t from, uint32_t to, float amount);
 
 typedef void (*Slide)(bool isFirstDraw, time_t now);
-const Slide SLIDES[] = {showDashboard, showSleep};
+const Slide SLIDES[] = {showDashboard, showSleep, showWeight};
 const int SLIDE_COUNT = sizeof(SLIDES) / sizeof(SLIDES[0]);
 
 static int slide = 0;
@@ -180,4 +189,44 @@ static String hoursAndMinutes(int minutes) {
   char text[12];
   snprintf(text, sizeof(text), "%d:%02d", minutes / 60, minutes % 60);
   return text;
+}
+
+// MARK: Weight
+
+// This morning's weight, then the average of this week so far and of the six
+// weeks before it, each colored by the change from the week before
+static void showWeight(bool isFirstDraw, time_t now) {
+  if (isFirstDraw) {
+    drawGridLines(4);
+    for (int cell : {0, 1}) fillGridCell(cell, RECENT_GRAY);
+  }
+  Weight weight = latestWeight();
+  drawGridValue(0, kilograms(weight.todayGrams), weightColor(weight.todayGrams, weight.weeklyGrams[1]), "today", RECENT_GRAY);
+  for (int week = 0; week < WEIGHT_WEEKS - 1; week++) {
+    int grams = weight.weeklyGrams[week];
+    drawGridValue(week + 1, kilograms(grams), weightColor(grams, weight.weeklyGrams[week + 1]), weekLabel(now, week), week == 0 ? RECENT_GRAY : BACKGROUND);
+  }
+}
+
+// "107.1"
+static String kilograms(int grams) {
+  if (grams == WEIGHT_MISSING) return "--";
+  return String(grams / 1000.0, 1);
+}
+
+static uint32_t weightColor(int grams, int lastWeekGrams) {
+  if (grams == WEIGHT_MISSING || lastWeekGrams == WEIGHT_MISSING) return TEXT_WHITE;
+  int change = grams - lastWeekGrams;
+  float amount = min(abs(change), WEIGHT_FULL_COLOR_GRAMS) / (float)WEIGHT_FULL_COLOR_GRAMS;
+  return blend(TEXT_WHITE, change < 0 ? WEIGHT_GREEN : WEIGHT_RED, amount);
+}
+
+// amount 0 is from, 1 is to
+static uint32_t blend(uint32_t from, uint32_t to, float amount) {
+  uint32_t color = 0;
+  for (int shift : {16, 8, 0}) {
+    int a = from >> shift & 0xFF, b = to >> shift & 0xFF;
+    color |= (uint32_t)lroundf(a + (b - a) * amount) << shift;
+  }
+  return color;
 }

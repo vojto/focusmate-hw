@@ -5,6 +5,7 @@
 #include "screens.h"
 #include "sessions.h"
 #include "slides.h"
+#include "weight.h"
 
 /*
  * Focusmate session display for an M5Stack Core2. The loop looks at the
@@ -41,6 +42,7 @@ void setup() {
   startNetwork();
   startFetchingSessions();
   startFetchingHealth();
+  startFetchingWeight();
   debugSetup();
 }
 

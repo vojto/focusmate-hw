@@ -14,3 +14,6 @@
 
 // From Moonlite: Settings > API token
 #define MOONLITE_API_TOKEN "your-api-token"
+
+// From Foodmark: the token for the external weights API
+#define FOODMARK_API_TOKEN "your-api-token"
