@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Weight Bars Sketch</title>
 <!--
-  The weight slide as a horizontal bar chart, on a drawing of the Core2:
-  this week's average and today's weigh-in, then the seven weeks before. Real
-  numbers come from tools/out/weight-data.js, made by tools/weight_data.py and
-  gitignored; without it the sketch uses made-up weights.
+  Two looks for the weight slide, each on a drawing of the Core2: the weekly
+  averages as bars, and the change from week to week. The numbers come from
+  tools/out/weight-data.js, made by python3 tools/weight_data.py and
+  gitignored (the repo is public).
 -->
 <style>
   :root { --bg: #f4f3ef; --muted: #6b6a64; }
@@ -39,7 +39,6 @@
   .buttons { position: absolute; left: calc(2.6 * var(--mm)); width: calc(40.8 * var(--mm)); bottom: calc(2.2 * var(--mm));
              display: flex; justify-content: space-around; }
   .buttons span { width: calc(1.6 * var(--mm)); height: calc(1.6 * var(--mm)); border-radius: 50%; background: #c8102e; opacity: .8; }
-  /* FreeSans on the device is a Helvetica clone */
   svg text { font-family: Helvetica, Arial, sans-serif; }
   .note { color: var(--muted); margin: 0; }
 </style>
@@ -51,110 +50,111 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="../out/weight-data.js"></script>
 <script>
-const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 8, LABEL_WIDTH = 44, BAR_HEIGHT = 24, VALUE_SIZE = 20;
-const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB', DIM = '#444441', GREEN = '#59DE65', RED = '#FC5855';  // BLUE is SLEEP_BLUE on the dashboard
+const WIDTH = 320, HEIGHT = 240, PADDING = 12, WEEKS = 8, ROW_HEIGHT = HEIGHT / WEEKS;
+const LABEL_WIDTH = 44, LABEL_SIZE = 13, BAR_HEIGHT = 24, VALUE_SIZE = 20, VALUE_WIDTH = 48;
+const CHEVRON_SIZE = 4, CHEVRON_GAP = 7;  // half its height, and the space on each side
+const GRAY = '#B4B2A9', DIM = '#444441', VALUE_BLUE = '#B5D4F4';
 // Light to heavy, from the sleep slide's colors (similar brightness on black)
 const WEIGHT_COLORS = ['#59DE65', '#ADE74E', '#FBD530', '#FF9044', '#FC5855'];
-const VALUE_BLUE = '#B5D4F4';  // the weights, a paler BLUE
-const CHEVRON_SIZE = 4, CHEVRON_GAP = 7;  // half its height, and the space on each side
-const CHANGE_WEEKS = 8, CHANGE_SCALE_STEP = 0.5;  // rows, and the widest bar rounded up to this many kilos
+const GREEN = WEIGHT_COLORS[0], RED = WEIGHT_COLORS.at(-1);
 
-const data = typeof WEIGHTS !== 'undefined' ? WEIGHTS : madeUpWeights();
-const rows = rowsOf(data);
-
-const VARIATIONS = [
-  { title: 'Weight, in half-kilo segments', draw: render },
-  { title: 'Change from the week before', draw: renderChange },
+const SKETCHES = [
+  ['Weight, in half-kilo segments', drawWeights],
+  ['Change from the week before', drawChanges],
 ];
 
-// This week (with today's weigh-in), then the seven weeks before
-function rowsOf(weights) {
-  const today = weights.current_week.days.find(d => d.date == isoDate(new Date()))?.weight_kg ?? null;
-  const weeks = [weights.current_week, ...weights.past_weeks];
-  const list = weeks.slice(0, ROWS).map(w => ({ label: `W${isoWeek(new Date(`${w.week_start_date}T12:00:00`))}`, kg: w.average_weight_kg }));
-  list[0].today = today;
-  return list;
+// MARK: Weights
+
+// Bars start a kilo under the lightest week, since from zero they would all
+// look the same. The lightest week is green, the heaviest red.
+function drawWeights(svg, weeks, today) {
+  const known = weeks.map(w => w.kg).filter(kg => kg != null);
+  const x = d3.scaleLinear().domain([Math.floor(d3.min(known)) - 1, Math.ceil(d3.max(known))])
+    .range([PADDING + LABEL_WIDTH, WIDTH - PADDING - 8 - VALUE_WIDTH]);
+  const color = d3.scaleSequential(d3.piecewise(d3.interpolateLab, WEIGHT_COLORS)).domain(d3.extent(known));
+
+  drawRows(svg, weeks, (row, week) => {
+    if (week.kg == null) return text(row, x.range()[0], '--', VALUE_SIZE, VALUE_BLUE);
+    for (const [from, to] of segments(x.domain()[0], week.kg)) {
+      row.append('rect').attr('x', x(from) + 1).attr('width', x(to) - x(from) - 2)
+        .attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT).attr('rx', 3).attr('fill', color(week.kg));
+    }
+    const average = text(row, x(week.kg) + 8, week.kg.toFixed(1), VALUE_SIZE, VALUE_BLUE);
+    if (week == weeks[0] && today != null) drawToday(row, average, today);
+  });
 }
 
-// Bars start a kilo under the lightest row; from zero they would all look the same
-function render(svg) {
-  const known = rows.map(r => r.kg).filter(kg => kg != null);
-  const valueWidth = measure('109.0', VALUE_SIZE);
-  const x0 = PADDING + LABEL_WIDTH;
-  const x = d3.scaleLinear().domain([Math.floor(d3.min(known)) - 1, Math.ceil(d3.max(known))]).range([x0, WIDTH - PADDING - 8 - valueWidth]);
-  const rowHeight = HEIGHT / ROWS;
-  // The lightest week shown is green, the heaviest red
-  const color = d3.scaleLinear().domain(d3.extent(known)).range([0, 1]).clamp(true).interpolate(() => d3.piecewise(d3.interpolateLab, WEIGHT_COLORS));
-
-  const row = svg.selectAll('g.row').data(rows).join('g').attr('class', 'row').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
-  row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
-  row.selectAll('rect').data(d => segments(x.domain()[0], d.kg)).join('rect')
-    .attr('x', ([from]) => x(from) + 1).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
-    .attr('width', ([from, to]) => Math.max(x(to) - x(from) - 2, 1)).attr('rx', 3).attr('fill', function () { return color(d3.select(this.parentNode).datum().kg); });
-  row.append('text').attr('x', d => (d.kg == null ? x0 : x(d.kg)) + 8).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', VALUE_BLUE)
-    .text(d => d.kg == null ? '--' : d.kg.toFixed(1))
-    .filter(d => d.today != null).each(function (d) { drawToday(d3.select(this.parentNode), this, d.today); });
-}
-
-// A small gray chevron after the week's average, then today's weigh-in
-function drawToday(row, average, kg) {
-  const x = +average.getAttribute('x') + average.getComputedTextLength() + CHEVRON_GAP;
-  row.append('path').attr('d', `M${x},${-CHEVRON_SIZE} L${x + CHEVRON_SIZE},0 L${x},${CHEVRON_SIZE}`)
-    .attr('fill', 'none').attr('stroke', GRAY).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
-  row.append('text').attr('x', x + CHEVRON_SIZE + CHEVRON_GAP).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', VALUE_BLUE).text(kg.toFixed(1));
-}
-
-// A bar as [from, to] pieces of half a kilo each, the last one cut at the
-// weight rounded to a tenth, so it is never thinner than 100 g
+// Half-kilo [from, to] pieces, the last one cut at the weight rounded to a
+// tenth, so none is thinner than 100 g
 function segments(start, kg) {
-  if (kg == null) return [];
   const end = Math.round(kg * 10) / 10;
   return d3.range(start, end - 0.01, 0.5).map(from => [from, Math.min(from + 0.5, end)]);
 }
 
-// MARK: Change
-
-// This week and the seven before, each a bar from the middle of the screen:
-// left and green for a loss, right and red for a gain
-function renderChange(svg) {
-  const changes = weeklyChanges();
-  const mid = WIDTH / 2, half = mid - PADDING - 36 - 6;
-  const widest = Math.max(CHANGE_SCALE_STEP, Math.ceil(d3.max(changes, c => Math.abs(c.kg ?? 0)) / CHANGE_SCALE_STEP) * CHANGE_SCALE_STEP);
-  const x = d3.scaleLinear().domain([-widest, widest]).range([mid - half, mid + half]);
-  const rowHeight = HEIGHT / CHANGE_WEEKS;
-
-  svg.append('line').attr('x1', mid).attr('x2', mid).attr('y1', 0).attr('y2', HEIGHT).attr('stroke', DIM);
-  const row = svg.selectAll('g.change').data(changes).join('g').attr('class', 'change').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
-  row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
-  row.filter(d => d.kg != null).append('rect').attr('y', -rowHeight / 2 + 3).attr('height', rowHeight - 6).attr('rx', 3)
-    .attr('x', d => Math.min(mid, x(d.kg))).attr('width', d => Math.max(Math.abs(x(d.kg) - mid), 2)).attr('fill', d => d.kg <= 0 ? GREEN : RED);
-  row.append('text').attr('x', WIDTH - PADDING).attr('dy', '0.35em').attr('text-anchor', 'end').attr('font-size', 13).attr('fill', GRAY)
-    .text(d => d.kg == null ? '--' : `${d.kg <= 0 ? '−' : '+'}${Math.abs(d.kg).toFixed(1)}`);
+// A small gray chevron after this week's average, then today's weigh-in
+function drawToday(row, average, kg) {
+  const x = +average.attr('x') + average.node().getComputedTextLength() + CHEVRON_GAP;
+  row.append('path').attr('d', `M${x},${-CHEVRON_SIZE} l${CHEVRON_SIZE},${CHEVRON_SIZE} l${-CHEVRON_SIZE},${CHEVRON_SIZE}`)
+    .attr('fill', 'none').attr('stroke', GRAY).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+  text(row, x + CHEVRON_SIZE + CHEVRON_GAP, kg.toFixed(1), VALUE_SIZE, VALUE_BLUE);
 }
 
-// Each week's average against the closest week before it with a weigh-in,
-// per week, so a missing week doesn't double the next one's change
-function weeklyChanges() {
-  const weeks = [data.current_week, ...data.past_weeks];
-  return weeks.slice(0, CHANGE_WEEKS).map((week, i) => {
-    const before = weeks.findIndex((w, j) => j > i && w.average_weight_kg != null);
-    const kg = week.average_weight_kg == null || before < 0 ? null : (week.average_weight_kg - weeks[before].average_weight_kg) / (before - i);
-    return { label: `W${isoWeek(new Date(`${week.week_start_date}T12:00:00`))}`, kg };
+// MARK: Changes
+
+// Bars from the middle of the screen: left and green for a loss, right and
+// red for a gain. The widest is rounded up to the next half kilo.
+function drawChanges(svg, weeks) {
+  const mid = WIDTH / 2, reach = mid - PADDING - LABEL_WIDTH;
+  const widest = Math.max(0.5, Math.ceil(d3.max(weeks, w => Math.abs(w.change ?? 0)) * 2) / 2);
+  const x = d3.scaleLinear().domain([-widest, widest]).range([mid - reach, mid + reach]);
+
+  svg.append('line').attr('x1', mid).attr('x2', mid).attr('y2', HEIGHT).attr('stroke', DIM);
+  drawRows(svg, weeks, (row, { change }) => {
+    if (change != null) {
+      row.append('rect').attr('x', Math.min(mid, x(change))).attr('width', Math.max(Math.abs(x(change) - mid), 2))
+        .attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT).attr('rx', 3).attr('fill', change <= 0 ? GREEN : RED);
+    }
+    const label = change == null ? '--' : `${change <= 0 ? '−' : '+'}${Math.abs(change).toFixed(1)}`;
+    text(row, WIDTH - PADDING, label, LABEL_SIZE, GRAY).attr('text-anchor', 'end');
   });
 }
 
-// Width of text in the screen's font, in screen pixels
-function measure(text, size) {
-  const probe = d3.select('svg').append('text').attr('font-size', size).text(text);
-  const width = probe.node().getComputedTextLength();
-  probe.remove();
-  return width;
+// MARK: Drawing
+
+// A row per week with its gray label; draw(row, week) adds the rest, with y 0
+// at the middle of the row
+function drawRows(svg, weeks, draw) {
+  weeks.forEach((week, i) => {
+    const row = svg.append('g').attr('transform', `translate(0, ${(i + 0.5) * ROW_HEIGHT})`);
+    text(row, PADDING, week.label, LABEL_SIZE, GRAY);
+    draw(row, week);
+  });
 }
 
-// MARK: Dates
+// FreeSans on the device is a Helvetica clone
+function text(parent, x, content, size, color) {
+  return parent.append('text').attr('x', x).attr('dy', '0.35em').attr('font-size', size).attr('fill', color).text(content);
+}
 
-function isoDate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+// MARK: Data
+
+// This week and the seven before, each with its change per week from the
+// closest earlier week with a weigh-in, so a missing week doesn't double the
+// next one's change
+function weeksOf(weights) {
+  const all = [weights.current_week, ...weights.past_weeks];
+  return all.slice(0, WEEKS).map((week, i) => {
+    const kg = week.average_weight_kg;
+    const before = all.findIndex((w, j) => j > i && w.average_weight_kg != null);
+    const change = kg == null || before < 0 ? null : (kg - all[before].average_weight_kg) / (before - i);
+    return { label: `W${isoWeek(new Date(`${week.week_start_date}T12:00:00`))}`, kg, change };
+  });
+}
+
+function todayOf(weights) {
+  const today = new Date();
+  const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  return weights.current_week.days.find(d => d.date == date)?.weight_kg ?? null;
 }
 
 function isoWeek(date) {
@@ -163,27 +163,21 @@ function isoWeek(date) {
   return 1 + Math.round(((thursday - firstThursday) / 86400000 - 3 + (firstThursday.getDay() + 6) % 7) / 7);
 }
 
-// Plausible weights shaped like Foodmark's response, for when tools/out/weight-data.js is missing
-function madeUpWeights() {
-  const monday = new Date(); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
-  const day = n => isoDate(new Date(monday.getTime() + n * 86400000));
-  return {
-    current_week: { week_start_date: day(0), average_weight_kg: 107.2, days: [0, 1, 2, 3, 4, 5, 6].map(n => ({ date: day(n), weight_kg: n <= (new Date().getDay() + 6) % 7 ? 107.4 - n * 0.15 : null })) },
-    past_weeks: [107.2, 108.1, 107.8, 108.0, 109.6].map((kg, i) => ({ week_start_date: day(-7 * (i + 1)), average_weight_kg: kg })),
-  };
-}
+// MARK: Page
 
-document.getElementById('source').textContent = typeof WEIGHTS !== 'undefined'
-  ? 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.'
-  : 'Made-up weights: run python3 tools/weight_data.py for real ones.';
-VARIATIONS.forEach(variation => {
-  const figure = d3.select('.variations').append('figure');
-  const glass = figure.append('div').attr('class', 'device').append('div').attr('class', 'glass');
-  const svg = glass.append('div').attr('class', 'screen').append('svg').attr('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
-  glass.append('div').attr('class', 'buttons').html('<span></span><span></span><span></span>');
-  figure.append('figcaption').text(variation.title);
-  variation.draw(svg);
-});
+if (typeof WEIGHTS == 'undefined') {
+  document.getElementById('source').textContent = 'No weights yet: run python3 tools/weight_data.py.';
+} else {
+  document.getElementById('source').textContent = 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.';
+  const weeks = weeksOf(WEIGHTS), today = todayOf(WEIGHTS);
+  for (const [title, draw] of SKETCHES) {
+    const figure = d3.select('.variations').append('figure');
+    const glass = figure.append('div').attr('class', 'device').append('div').attr('class', 'glass');
+    draw(glass.append('div').attr('class', 'screen').append('svg').attr('viewBox', `0 0 ${WIDTH} ${HEIGHT}`), weeks, today);
+    glass.append('div').attr('class', 'buttons').html('<span></span><span></span><span></span>');
+    figure.append('figcaption').text(title);
+  }
+}
 </script>
 </body>
 </html>
