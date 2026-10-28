@@ -27,8 +27,6 @@ const int WEIGHT_COLOR_COUNT = sizeof(WEIGHT_COLORS) / sizeof(WEIGHT_COLORS[0]);
 const uint32_t RECENT_GRAY = 0x222220;  // behind the first row, last night and this week
 
 #define SLIDE_MS 60000          // how long a slide stays
-#define TAP_HZ 2000             // the click that confirms a tap
-#define TAP_MS 15
 #define NOTICE_HEIGHT 20        // a bar across the top, above the first row's text
 
 // The weight slide: a row per week, a bar of half-kilo segments and the weight
@@ -84,10 +82,7 @@ void showSlides(time_t now, const char *notice) {
   static String shownNotice;
   bool isBackFromSession = shownScreen() < SCREEN_SLIDE;
   if (isBackFromSession) showSlide(0);
-  else if (M5.Touch.getDetail().wasPressed()) {
-    M5.Speaker.tone(TAP_HZ, TAP_MS);
-    nextSlide();
-  } else if (millis() - slideShownAt >= SLIDE_MS) nextSlide();
+  else if (millis() - slideShownAt >= SLIDE_MS) nextSlide();
 
   bool isFirstDraw = enterScreen(SCREEN_SLIDE + slide);
   // The notice bar crosses the slide, so a change redraws everything
@@ -102,6 +97,8 @@ void showSlides(time_t now, const char *notice) {
 }
 
 void nextSlide() { showSlide((slide + 1) % SLIDE_COUNT); }
+
+bool isLastSlide() { return slide == SLIDE_COUNT - 1; }
 
 static void showSlide(int index) {
   slide = index;
