@@ -20,9 +20,12 @@
   * { box-sizing: border-box; }
   body { margin: 0; min-height: 100vh; background: var(--bg); font: 12px/1.4 -apple-system, system-ui, sans-serif;
          display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px 16px; }
+  .variations { display: flex; flex-wrap: wrap; justify-content: center; gap: 32px; }
+  figure { margin: 0; display: grid; gap: 12px; justify-items: center; }
+  figcaption { color: var(--muted); font-size: 13px; }
 
   /* The Core2 is about 54x54mm; its 2" screen is 40.8x30.6mm (4:3), centered near the top */
-  .device { --mm: min(12px, calc((100vw - 32px) / 54)); width: calc(54 * var(--mm)); height: calc(54 * var(--mm));
+  .device { --mm: min(12px, calc((100vw - 32px) / 54), calc((50vw - 48px) / 54)); width: calc(54 * var(--mm)); height: calc(54 * var(--mm));
             border-radius: calc(4 * var(--mm)); background: linear-gradient(160deg, #3a3a3c, #232325);
             box-shadow: 0 calc(2 * var(--mm)) calc(5 * var(--mm)) rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .12);
             position: relative; }
@@ -42,22 +45,24 @@
 </style>
 </head>
 <body>
-<div class="device">
-  <div class="glass">
-    <div class="screen"><svg viewBox="0 0 320 240"></svg></div>
-    <div class="buttons"><span></span><span></span><span></span></div>
-  </div>
-</div>
+<div class="variations"></div>
 <p class="note" id="source"></p>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="../out/weight-data.js"></script>
 <script>
-const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 6, LABEL_WIDTH = 44, BAR_HEIGHT = 30, BAR_RADIUS = 3, SEGMENT_GAP = 2, VALUE_SIZE = 22;
-const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB';  // SLEEP_BLUE on the dashboard
+const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 6, LABEL_WIDTH = 44, BAR_HEIGHT = 30, VALUE_SIZE = 22;
+const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB', TEAL = '#5ECBC4';  // BLUE is SLEEP_BLUE on the dashboard
 
 const data = typeof WEIGHTS !== 'undefined' ? WEIGHTS : madeUpWeights();
 const rows = rowsOf(data);
+
+// How each bar is cut up: segment size in kilos, the gap and corner radius in
+// screen pixels, and the color of the segment starting at a weight
+const VARIATIONS = [
+  { title: 'Half-kilo segments', step: 0.5, gap: 2, radius: 3, color: () => BLUE },
+  { title: 'Tenth segments, alternating every half kilo', step: 0.1, gap: 1, radius: 1, color: from => Math.floor(from * 2 + 1e-6) % 2 ? TEAL : BLUE },
+];
 
 // Today, this week, then the four weeks before
 function rowsOf(weights) {
@@ -68,8 +73,7 @@ function rowsOf(weights) {
 }
 
 // Bars start a kilo under the lightest row; from zero they would all look the same
-function render() {
-  const svg = d3.select('svg');
+function render(svg, variation) {
   const known = rows.map(r => r.kg).filter(kg => kg != null);
   const valueWidth = measure('109.0', VALUE_SIZE);
   const x0 = PADDING + LABEL_WIDTH;
@@ -78,19 +82,20 @@ function render() {
 
   const row = svg.selectAll('g.row').data(rows).join('g').attr('class', 'row').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
   row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
-  row.selectAll('rect').data(d => segments(x.domain()[0], d.kg)).join('rect')
-    .attr('x', ([from]) => x(from) + SEGMENT_GAP / 2).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
-    .attr('width', ([from, to]) => Math.max(x(to) - x(from) - SEGMENT_GAP, 1)).attr('rx', BAR_RADIUS).attr('fill', BLUE);
+  const { step, gap, radius, color } = variation;
+  row.selectAll('rect').data(d => segments(x.domain()[0], d.kg, step)).join('rect')
+    .attr('x', ([from]) => x(from) + gap / 2).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
+    .attr('width', ([from, to]) => Math.max(x(to) - x(from) - gap, 1)).attr('rx', radius).attr('fill', ([from]) => color(from));
   row.append('text').attr('x', d => (d.kg == null ? x0 : x(d.kg)) + 8).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', WHITE)
     .text(d => d.kg == null ? '--' : d.kg.toFixed(1));
 }
 
-// A bar as [from, to] pieces of half a kilo each, the last one cut at the
+// A bar as [from, to] pieces of step kilos each, the last one cut at the
 // weight rounded to a tenth, so it is never thinner than 100 g
-function segments(start, kg) {
+function segments(start, kg, step) {
   if (kg == null) return [];
   const end = Math.round(kg * 10) / 10;
-  return d3.range(start, end - 0.01, 0.5).map(from => [from, Math.min(from + 0.5, end)]);
+  return d3.range(start, end - 0.01, step).map(from => [from, Math.min(from + step, end)]);
 }
 
 // Width of text in the screen's font, in screen pixels
@@ -126,7 +131,14 @@ function madeUpWeights() {
 document.getElementById('source').textContent = typeof WEIGHTS !== 'undefined'
   ? 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.'
   : 'Made-up weights: run python3 tools/weight_data.py for real ones.';
-render();
+VARIATIONS.forEach(variation => {
+  const figure = d3.select('.variations').append('figure');
+  const glass = figure.append('div').attr('class', 'device').append('div').attr('class', 'glass');
+  const svg = glass.append('div').attr('class', 'screen').append('svg').attr('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
+  glass.append('div').attr('class', 'buttons').html('<span></span><span></span><span></span>');
+  figure.append('figcaption').text(variation.title);
+  render(svg, variation);
+});
 </script>
 </body>
 </html>
