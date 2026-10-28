@@ -6,7 +6,7 @@
 <title>Weight Bars Sketch</title>
 <!--
   The weight slide as a horizontal bar chart, on a drawing of the Core2:
-  today's weigh-in, this week's average, then the six weeks before. Real
+  this week's average and today's weigh-in, then the seven weeks before. Real
   numbers come from tools/out/weight-data.js, made by tools/weight_data.py and
   gitignored; without it the sketch uses made-up weights.
 -->
@@ -63,11 +63,12 @@ const VARIATIONS = [
   { title: 'Change from the week before', draw: renderChange },
 ];
 
-// Today, this week, then the six weeks before
+// This week (with today's weigh-in), then the seven weeks before
 function rowsOf(weights) {
   const today = weights.current_week.days.find(d => d.date == isoDate(new Date()))?.weight_kg ?? null;
   const weeks = [weights.current_week, ...weights.past_weeks];
-  const list = [{ label: 'today', kg: today }, ...weeks.slice(0, ROWS - 1).map(w => ({ label: `W${isoWeek(new Date(`${w.week_start_date}T12:00:00`))}`, kg: w.average_weight_kg }))];
+  const list = weeks.slice(0, ROWS).map(w => ({ label: `W${isoWeek(new Date(`${w.week_start_date}T12:00:00`))}`, kg: w.average_weight_kg }));
+  list[0].today = today;
   return list;
 }
 
@@ -85,7 +86,9 @@ function render(svg) {
     .attr('x', ([from]) => x(from) + 1).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
     .attr('width', ([from, to]) => Math.max(x(to) - x(from) - 2, 1)).attr('rx', 3).attr('fill', BLUE);
   row.append('text').attr('x', d => (d.kg == null ? x0 : x(d.kg)) + 8).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', WHITE)
-    .text(d => d.kg == null ? '--' : d.kg.toFixed(1));
+    .text(d => d.kg == null ? '--' : d.kg.toFixed(1))
+    .filter(d => d.today != null).append('tspan').attr('fill', GRAY).text(' → ')
+    .append('tspan').attr('fill', WHITE).text(d => d.today.toFixed(1));
 }
 
 // A bar as [from, to] pieces of half a kilo each, the last one cut at the
