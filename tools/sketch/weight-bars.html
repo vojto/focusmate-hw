@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weight Bars Sketch</title>
+<!--
+  A place to try the weight slide as a horizontal bar chart before changing
+  the firmware. Six rows on the Core2's 320x240 screen, drawn scaled up:
+  today's weigh-in, this week's average, then the four weeks before. Real
+  numbers come from tools/out/weight-data.js, made by tools/weight_data.py and
+  gitignored; without it the sketch uses made-up weights.
+-->
+<style>
+  :root {
+    --bg: #f4f3ef; --ink: #1d1d1b; --muted: #6b6a64; --card: #fff; --line: #dcdad2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; --card: #222220; --line: #34342f; }
+  }
+  :root[data-theme="dark"] { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; --card: #222220; --line: #34342f; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 -apple-system, system-ui, sans-serif; }
+  main { display: flex; gap: 32px; padding: 24px 16px; flex-wrap: wrap; align-items: flex-start; }
+  aside { width: 280px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+  h1 { font-size: 15px; margin: 0; }
+  .note { color: var(--muted); font-size: 12px; margin: 0; }
+  label { display: grid; gap: 2px; color: var(--muted); font-size: 12px; }
+  label.check { display: flex; gap: 6px; align-items: center; color: var(--ink); font-size: 13px; }
+  label output { color: var(--ink); }
+  input, select, button { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+  input[type=range] { padding: 0; }
+  button { cursor: pointer; }
+
+  .device { display: grid; gap: 10px; }
+  .frame { width: 640px; max-width: calc(100vw - 52px); aspect-ratio: 4 / 3; border-radius: 14px; background: #000; overflow: hidden; box-shadow: 0 0 0 10px #2a2a28; margin: 10px; }
+  .frame svg { width: 100%; height: 100%; display: block; }
+  /* FreeSans on the device is a Helvetica clone */
+  svg text { font-family: Helvetica, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<main>
+  <aside>
+    <h1>Weight bars</h1>
+    <p class="note">Bars all start at the left; their length is the weight above "bars start at". From zero they would all look the same.</p>
+    <label>Bars start at (kg) <input id="floor" type="number" step="0.5"></label>
+    <label>Longest bar at (kg) <input id="ceiling" type="number" step="0.5"></label>
+    <label>Bar thickness <output id="thicknessOut"></output><input id="thickness" type="range" min="8" max="40"></label>
+    <label>Value size <output id="valueSizeOut"></output><input id="valueSize" type="range" min="12" max="32"></label>
+    <label>Bar color
+      <select id="colorMode">
+        <option value="change">By change from the row below (green loss, red gain)</option>
+        <option value="gray">Gray, today and this week brighter</option>
+        <option value="blue">One color</option>
+      </select>
+    </label>
+    <label>Row labels
+      <select id="labels">
+        <option value="left">Left of the bar (today, W44…)</option>
+        <option value="after">After the value, small and gray</option>
+        <option value="none">None</option>
+      </select>
+    </label>
+    <label class="check"><input id="decimals2" type="checkbox"> Two decimals (107.06)</label>
+    <label class="check"><input id="gridlines" type="checkbox"> Line at every whole kilo</label>
+    <label class="check"><input id="notice" type="checkbox"> Show the "No Wi-Fi" notice bar</label>
+    <button id="reset">Reset</button>
+  </aside>
+
+  <div class="device">
+    <div class="frame"><svg viewBox="0 0 320 240"></svg></div>
+    <p class="note" id="source"></p>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="../out/weight-data.js"></script>
+<script>
+const WIDTH = 320, HEIGHT = 240, PADDING = 12, NOTICE_HEIGHT = 20, ROWS = 6;
+const WHITE = '#F1EFE8', GRAY = '#B4B2A9', DIM = '#444441', GREEN = '#59DE65', RED = '#FC5855', BLUE = '#85B7EB', ORANGE = '#FF9044';
+const FULL_COLOR_KG = 0.5;  // like WEIGHT_FULL_COLOR_GRAMS on the weight branch
+const DEFAULTS = { thickness: 22, valueSize: 22, colorMode: 'change', labels: 'left', decimals2: false, gridlines: false, notice: false };
+const STORE_KEY = 'weight-bars';
+
+const data = typeof WEIGHTS !== 'undefined' ? WEIGHTS : madeUpWeights();
+const rows = rowsOf(data);
+let settings = load();
+
+// Today, this week, then the four weeks before; each knows the row below it to color by change
+function rowsOf(weights) {
+  const todayIso = isoDate(new Date());
+  const today = weights.current_week.days.find(d => d.date == todayIso)?.weight_kg ?? null;
+  const weeks = [weights.current_week, ...weights.past_weeks].slice(0, ROWS);
+  const list = [{ label: 'today', kg: today }, ...weeks.slice(0, ROWS - 1).map(w => ({ label: `W${isoWeek(new Date(`${w.week_start_date}T12:00:00`))}`, kg: w.average_weight_kg }))];
+  list.forEach((row, i) => row.before = i == 0 ? weeks[1]?.average_weight_kg : weeks[i]?.average_weight_kg);
+  return list;
+}
+
+function render() {
+  const s = settings;
+  const svg = d3.select('svg');
+  svg.selectAll('*').remove();
+
+  const top = s.notice ? NOTICE_HEIGHT : 0;
+  const rowHeight = (HEIGHT - top) / ROWS;
+  const labelWidth = s.labels == 'left' ? 44 : 0;
+  const valueText = kg => kg == null ? '--' : kg.toFixed(s.decimals2 ? 2 : 1);
+  const valueWidth = measure('109.' + (s.decimals2 ? '00' : '0'), s.valueSize) + (s.labels == 'after' ? measure('W44', 12) + 6 : 0);
+  const x0 = PADDING + labelWidth;
+  const x = d3.scaleLinear().domain([s.floor, s.ceiling]).range([x0, WIDTH - PADDING - 8 - valueWidth]).clamp(true);
+
+  if (s.gridlines) {
+    svg.append('g').selectAll('line').data(d3.range(Math.ceil(s.floor), Math.floor(s.ceiling) + 1)).join('line')
+      .attr('x1', d => x(d)).attr('x2', d => x(d)).attr('y1', top).attr('y2', HEIGHT).attr('stroke', DIM).attr('stroke-width', 1);
+  }
+
+  const row = svg.append('g').selectAll('g').data(rows).join('g')
+    .attr('transform', (_, i) => `translate(0, ${top + i * rowHeight + rowHeight / 2})`);
+
+  if (s.labels == 'left') {
+    row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
+  }
+
+  row.append('rect')
+    .attr('x', x0).attr('y', -s.thickness / 2).attr('height', s.thickness)
+    .attr('width', d => d.kg == null ? 0 : Math.max(x(d.kg) - x0, 1))
+    .attr('fill', (d, i) => barColor(d, i));
+
+  const value = row.append('text')
+    .attr('x', d => (d.kg == null ? x0 : x(d.kg)) + 8).attr('dy', '0.35em').attr('font-size', s.valueSize).attr('fill', WHITE)
+    .text(d => valueText(d.kg));
+  if (s.labels == 'after') {
+    value.append('tspan').attr('dx', 6).attr('font-size', 12).attr('fill', GRAY).text(d => d.label);
+  }
+
+  if (s.notice) {
+    svg.append('rect').attr('width', WIDTH).attr('height', NOTICE_HEIGHT).attr('fill', ORANGE);
+    svg.append('text').attr('x', WIDTH / 2).attr('y', 14).attr('text-anchor', 'middle').attr('font-size', 12).attr('fill', '#000').text('No Wi-Fi');
+  }
+}
+
+function barColor(row, i) {
+  if (settings.colorMode == 'blue') return BLUE;
+  if (settings.colorMode == 'gray') return i < 2 ? WHITE : '#6b6a64';
+  if (row.kg == null || row.before == null) return WHITE;
+  const change = row.kg - row.before;
+  return d3.interpolateRgb(WHITE, change < 0 ? GREEN : RED)(Math.min(Math.abs(change), FULL_COLOR_KG) / FULL_COLOR_KG);
+}
+
+// Width of text in the screen's font, in screen pixels
+function measure(text, size) {
+  const probe = d3.select('svg').append('text').attr('font-size', size).text(text);
+  const width = probe.node().getComputedTextLength();
+  probe.remove();
+  return width;
+}
+
+function autoRange() {
+  const known = rows.map(r => r.kg).filter(kg => kg != null);
+  return { floor: Math.floor(d3.min(known)) - 1, ceiling: Math.ceil(d3.max(known)) };
+}
+
+// MARK: Settings
+
+function load() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch {}
+  return { ...DEFAULTS, ...autoRange(), ...saved };
+}
+
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch {}
+}
+
+function showSettings() {
+  for (const [key, value] of Object.entries(settings)) {
+    const input = document.getElementById(key);
+    if (!input) continue;
+    if (input.type == 'checkbox') input.checked = value; else input.value = value;
+    const out = document.getElementById(key + 'Out');
+    if (out) out.textContent = `${value}px`;
+  }
+}
+
+document.querySelector('aside').addEventListener('input', event => {
+  const input = event.target;
+  if (!input.id || !(input.id in settings)) return;
+  settings[input.id] = input.type == 'checkbox' ? input.checked : input.type == 'select-one' ? input.value : Number(input.value);
+  save();
+  showSettings();
+  render();
+});
+document.getElementById('reset').addEventListener('click', () => {
+  settings = { ...DEFAULTS, ...autoRange() };
+  save();
+  showSettings();
+  render();
+});
+
+// MARK: Dates
+
+function isoDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function isoWeek(date) {
+  const thursday = new Date(date); thursday.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  const firstThursday = new Date(thursday.getFullYear(), 0, 4);
+  return 1 + Math.round(((thursday - firstThursday) / 86400000 - 3 + (firstThursday.getDay() + 6) % 7) / 7);
+}
+
+// Plausible weights shaped like Foodmark's response, for when tools/out/weight-data.js is missing
+function madeUpWeights() {
+  const monday = new Date(); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
+  const day = n => isoDate(new Date(monday.getTime() + n * 86400000));
+  return {
+    current_week: { week_start_date: day(0), average_weight_kg: 107.2, days: [0, 1, 2, 3, 4, 5, 6].map(n => ({ date: day(n), weight_kg: n <= (new Date().getDay() + 6) % 7 ? 107.4 - n * 0.15 : null })) },
+    past_weeks: [107.2, 108.1, 107.8, 108.0, 109.6].map((kg, i) => ({ week_start_date: day(-7 * (i + 1)), average_weight_kg: kg })),
+  };
+}
+
+document.getElementById('source').textContent = typeof WEIGHTS !== 'undefined'
+  ? 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.'
+  : 'Made-up weights: run python3 tools/weight_data.py for real ones.';
+showSettings();
+render();
+</script>
+</body>
+</html>
