@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weight Slide Ideas</title>
+<!--
+  Other looks for the weight slide, side by side on drawings of the Core2.
+  Same rows as tools/sketch/weight-bars.html: today, this week, the four weeks
+  before. Real numbers come from tools/out/weight-data.js (tools/weight_data.py).
+-->
+<style>
+  :root { --bg: #f4f3ef; --ink: #1d1d1b; --muted: #6b6a64; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; }
+  }
+  :root[data-theme="dark"] { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 -apple-system, system-ui, sans-serif; padding: 24px 16px; }
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 32px 24px; max-width: 1200px; margin: 0 auto; }
+  figure { margin: 0; display: grid; gap: 10px; justify-items: center; }
+  figcaption { max-width: 320px; text-align: center; }
+  figcaption b { display: block; }
+  figcaption span { color: var(--muted); }
+
+  /* The Core2 is about 54x54mm; its 2" screen is 40.8x30.6mm (4:3) */
+  .device { --mm: 5.6px; width: calc(54 * var(--mm)); height: calc(54 * var(--mm)); position: relative;
+            border-radius: calc(4 * var(--mm)); background: linear-gradient(160deg, #3a3a3c, #232325);
+            box-shadow: 0 calc(1.5 * var(--mm)) calc(4 * var(--mm)) rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .12); }
+  .glass { position: absolute; left: calc(4 * var(--mm)); right: calc(4 * var(--mm)); top: calc(4 * var(--mm));
+           height: calc(40 * var(--mm)); background: #0b0b0c; border-radius: calc(1.5 * var(--mm)); }
+  .screen { position: absolute; left: calc(2.6 * var(--mm)); top: calc(2.4 * var(--mm));
+            width: calc(40.8 * var(--mm)); height: calc(30.6 * var(--mm)); background: #000; }
+  .screen svg { width: 100%; height: 100%; display: block; }
+  .buttons { position: absolute; left: calc(2.6 * var(--mm)); width: calc(40.8 * var(--mm)); bottom: calc(2.2 * var(--mm));
+             display: flex; justify-content: space-around; }
+  .buttons span { width: calc(1.6 * var(--mm)); height: calc(1.6 * var(--mm)); border-radius: 50%; background: #c8102e; opacity: .8; }
+  svg text { font-family: Helvetica, Arial, sans-serif; }
+  .note { color: var(--muted); text-align: center; margin: 24px 0 0; }
+</style>
+</head>
+<body>
+<main></main>
+<p class="note" id="source"></p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="../out/weight-data.js"></script>
+<script>
+const W = 320, H = 240, PAD = 12, LABEL_W = 44;
+const WHITE = '#F1EFE8', GRAY = '#B4B2A9', DIM = '#444441', DARK = '#222220', BLUE = '#85B7EB', GREEN = '#59DE65', RED = '#FC5855';
+
+const data = typeof WEIGHTS !== 'undefined' ? WEIGHTS : madeUpWeights();
+const rows = rowsOf(data);
+const known = rows.map(r => r.kg).filter(kg => kg != null);
+const low = Math.floor(d3.min(known)) - 1, high = Math.ceil(d3.max(known));
+
+const IDEAS = [
+  ['Segmented bars', 'Where we are now: half-kilo segments, the last one cut at the weight.', segmentedBars],
+  ['Dot meter', 'A dot per half kilo, like an LED bar graph. The last dot is lit by how much of it is filled.', dotMeter],
+  ['Lollipops', 'A thin stem and a dot at the weight. Lighter, and the dots line up into a trend.', lollipops],
+  ['Change from this week', 'Bars grow left or right of this week\'s average. Shows direction, not size.', diverging],
+  ['Hero number', 'Today big on top, the weeks as a small strip of bars below.', hero],
+  ['Trend line', 'One dot per row on a shared axis, joined top to bottom: the path is the story.', trendLine],
+  ['Fading history', 'The same bars, getting dimmer the older the week. Today stands out.', fadingBars],
+  ['Value inside', 'The number sits inside the end of the bar, dark on blue, so bars can use the full width.', valueInside],
+  ['Tenth ticks', 'Bars made of thin ticks, one per 100 g, brighter every half kilo. A ruler feel.', tenthTicks],
+];
+
+// Today, this week, then the four weeks before
+function rowsOf(weights) {
+  const today = weights.current_week.days.find(d => d.date == isoDate(new Date()))?.weight_kg ?? null;
+  const weeks = [weights.current_week, ...weights.past_weeks].slice(0, 5);
+  return [{ label: 'today', kg: today }, ...weeks.map(w => ({ label: `W${isoWeek(new Date(`${w.week_start_date}T12:00:00`))}`, kg: w.average_weight_kg }))];
+}
+
+// MARK: Ideas
+
+// Six rows of 40px with gray labels on the left; calls draw(row group, row, i) centered on each row
+function eachRow(svg, draw, { top = 0, height = H, labelSize = 13 } = {}) {
+  const rowH = (height - top) / rows.length;
+  rows.forEach((row, i) => {
+    const g = svg.append('g').attr('transform', `translate(0, ${top + i * rowH + rowH / 2})`);
+    g.append('text').attr('x', PAD).attr('dy', '0.35em').attr('font-size', labelSize).attr('fill', GRAY).text(row.label);
+    draw(g, row, i, rowH);
+  });
+}
+
+const valueText = kg => kg == null ? '--' : kg.toFixed(1);
+const barScale = (right = W - PAD - 8 - 64) => d3.scaleLinear().domain([low, high]).range([PAD + LABEL_W, right]);
+const value = (g, x, kg, size = 22, color = WHITE) => g.append('text').attr('x', x).attr('dy', '0.35em').attr('font-size', size).attr('fill', color).text(valueText(kg));
+const halves = kg => kg == null ? [] : d3.range(low, kg, 0.5).map(from => [from, Math.min(from + 0.5, kg)]);
+
+function segmentedBars(svg) {
+  const x = barScale();
+  eachRow(svg, (g, row) => {
+    halves(row.kg).forEach(([from, to]) => g.append('rect').attr('x', x(from) + 1).attr('y', -15).attr('height', 30)
+      .attr('width', Math.max(x(to) - x(from) - 2, 1)).attr('rx', 3).attr('fill', BLUE));
+    value(g, (row.kg == null ? x(low) : x(row.kg)) + 8, row.kg);
+  });
+}
+
+function dotMeter(svg) {
+  const x = barScale();
+  const r = (x(low + 0.5) - x(low)) / 2 - 2;
+  eachRow(svg, (g, row) => {
+    d3.range(low, high, 0.5).forEach(from => {
+      const fill = row.kg == null ? 0 : Math.max(0, Math.min(1, (row.kg - from) / 0.5));
+      const cx = x(from + 0.25);
+      g.append('circle').attr('cx', cx).attr('r', r).attr('fill', DARK);
+      if (fill > 0) g.append('circle').attr('cx', cx).attr('r', r).attr('fill', BLUE).attr('opacity', 0.25 + 0.75 * fill);
+    });
+    value(g, x(high) + 8, row.kg);
+  });
+}
+
+function lollipops(svg) {
+  const x = barScale();
+  eachRow(svg, (g, row) => {
+    if (row.kg == null) return value(g, x(low) + 8, null);
+    g.append('line').attr('x1', x(low)).attr('x2', x(row.kg)).attr('stroke', DIM).attr('stroke-width', 3).attr('stroke-linecap', 'round');
+    g.append('circle').attr('cx', x(row.kg)).attr('r', 8).attr('fill', BLUE);
+    value(g, x(row.kg) + 16, row.kg);
+  });
+}
+
+function diverging(svg) {
+  const base = rows[1].kg;
+  const spread = Math.max(1, d3.max(rows, r => r.kg == null ? 0 : Math.abs(r.kg - base)));
+  const mid = PAD + LABEL_W + 70;
+  const x = d3.scaleLinear().domain([-spread, spread]).range([mid - 64, mid + 64]);
+  svg.append('line').attr('x1', mid).attr('x2', mid).attr('y1', 6).attr('y2', H - 6).attr('stroke', DIM);
+  eachRow(svg, (g, row) => {
+    if (row.kg != null) {
+      const change = row.kg - base;
+      g.append('rect').attr('x', Math.min(mid, x(change))).attr('width', Math.max(Math.abs(x(change) - mid), 2))
+        .attr('y', -13).attr('height', 26).attr('rx', 3).attr('fill', change <= 0 ? GREEN : RED);
+    }
+    value(g, W - PAD, row.kg, 20).attr('text-anchor', 'end');
+  });
+}
+
+function hero(svg) {
+  const today = rows[0], week = rows[1];
+  svg.append('text').attr('x', PAD).attr('y', 22).attr('font-size', 13).attr('fill', GRAY).text('today');
+  svg.append('text').attr('x', PAD - 3).attr('y', 92).attr('font-size', 72).attr('fill', WHITE).text(valueText(today.kg));
+  if (today.kg != null && week.kg != null) {
+    const change = today.kg - rows[2].kg;
+    svg.append('text').attr('x', W - PAD).attr('y', 22).attr('text-anchor', 'end').attr('font-size', 15)
+      .attr('fill', change <= 0 ? GREEN : RED).text(`${change <= 0 ? '−' : '+'}${Math.abs(change).toFixed(1)} vs W${rows[2].label.slice(1)}`);
+  }
+  const weeks = rows.slice(1);
+  const x = d3.scaleLinear().domain([low, high]).range([PAD + 36, W - PAD - 44]);
+  weeks.forEach((row, i) => {
+    const y = 116 + i * 24;
+    svg.append('text').attr('x', PAD).attr('y', y).attr('dy', '0.35em').attr('font-size', 12).attr('fill', GRAY).text(row.label);
+    if (row.kg != null) svg.append('rect').attr('x', x(low)).attr('y', y - 7).attr('height', 14).attr('rx', 3).attr('width', x(row.kg) - x(low)).attr('fill', i == 0 ? BLUE : '#4E6E8E');
+    svg.append('text').attr('x', W - PAD).attr('y', y).attr('dy', '0.35em').attr('text-anchor', 'end').attr('font-size', 15).attr('fill', WHITE).text(valueText(row.kg));
+  });
+}
+
+function trendLine(svg) {
+  const x = d3.scaleLinear().domain([low + 0.5, high]).range([PAD + LABEL_W + 10, W - PAD - 70]);
+  const rowH = H / rows.length;
+  d3.range(low + 0.5, high + 0.01, 0.5).forEach(kg => svg.append('line').attr('x1', x(kg)).attr('x2', x(kg)).attr('y1', 4).attr('y2', H - 4)
+    .attr('stroke', kg % 1 == 0 ? DIM : DARK));
+  const points = rows.map((r, i) => r.kg == null ? null : [x(r.kg), i * rowH + rowH / 2]).filter(Boolean);
+  svg.append('path').attr('d', d3.line().curve(d3.curveMonotoneY)(points)).attr('fill', 'none').attr('stroke', BLUE).attr('stroke-width', 2.5);
+  eachRow(svg, (g, row, i) => {
+    if (row.kg != null) g.append('circle').attr('cx', x(row.kg)).attr('r', i == 0 ? 7 : 5).attr('fill', i == 0 ? WHITE : BLUE);
+    value(g, W - PAD, row.kg, 20).attr('text-anchor', 'end');
+  });
+}
+
+function fadingBars(svg) {
+  const x = barScale();
+  eachRow(svg, (g, row, i) => {
+    const opacity = [1, 0.85, 0.6, 0.45, 0.35, 0.28][i];
+    if (row.kg != null) g.append('rect').attr('x', x(low)).attr('y', -15).attr('height', 30).attr('rx', 5).attr('width', x(row.kg) - x(low)).attr('fill', BLUE).attr('opacity', opacity);
+    value(g, (row.kg == null ? x(low) : x(row.kg)) + 8, row.kg, 22, d3.interpolateRgb('#000', WHITE)(Math.max(opacity, 0.5)));
+  });
+}
+
+function valueInside(svg) {
+  const x = d3.scaleLinear().domain([low - 1.5, high]).range([PAD + LABEL_W, W - PAD]);
+  eachRow(svg, (g, row) => {
+    if (row.kg == null) return value(g, x(low - 1.5) + 8, null);
+    g.append('rect').attr('x', x(low - 1.5)).attr('y', -16).attr('height', 32).attr('rx', 5).attr('width', x(row.kg) - x(low - 1.5)).attr('fill', BLUE);
+    value(g, x(row.kg) - 8, row.kg, 22, '#0B1A2A').attr('text-anchor', 'end');
+  });
+}
+
+function tenthTicks(svg) {
+  const x = barScale();
+  eachRow(svg, (g, row) => {
+    d3.range(0, Math.round((high - low) * 10)).forEach(n => {
+      const kg = low + n / 10;
+      const isOn = row.kg != null && kg < row.kg;
+      const isHalf = n % 5 == 0;
+      g.append('rect').attr('x', x(kg)).attr('y', isHalf ? -15 : -11).attr('width', 2).attr('height', isHalf ? 30 : 22)
+        .attr('fill', isOn ? (isHalf ? WHITE : BLUE) : DARK);
+    });
+    value(g, x(high) + 8, row.kg);
+  });
+}
+
+// MARK: Page
+
+function render() {
+  const main = d3.select('main');
+  IDEAS.forEach(([title, description, draw]) => {
+    const figure = main.append('figure');
+    const glass = figure.append('div').attr('class', 'device').append('div').attr('class', 'glass');
+    const svg = glass.append('div').attr('class', 'screen').append('svg').attr('viewBox', `0 0 ${W} ${H}`);
+    glass.append('div').attr('class', 'buttons').html('<span></span><span></span><span></span>');
+    draw(svg);
+    figure.append('figcaption').html(`<b>${title}</b><span>${description}</span>`);
+  });
+}
+
+function isoDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function isoWeek(date) {
+  const thursday = new Date(date); thursday.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  const firstThursday = new Date(thursday.getFullYear(), 0, 4);
+  return 1 + Math.round(((thursday - firstThursday) / 86400000 - 3 + (firstThursday.getDay() + 6) % 7) / 7);
+}
+
+// Plausible weights shaped like Foodmark's response, for when tools/out/weight-data.js is missing
+function madeUpWeights() {
+  const monday = new Date(); monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
+  const day = n => isoDate(new Date(monday.getTime() + n * 86400000));
+  return {
+    current_week: { week_start_date: day(0), average_weight_kg: 107.2, days: [0, 1, 2, 3, 4, 5, 6].map(n => ({ date: day(n), weight_kg: n <= (new Date().getDay() + 6) % 7 ? 107.4 - n * 0.15 : null })) },
+    past_weeks: [107.2, 108.1, 107.8, 108.0, 109.6].map((kg, i) => ({ week_start_date: day(-7 * (i + 1)), average_weight_kg: kg })),
+  };
+}
+
+document.getElementById('source').textContent = typeof WEIGHTS !== 'undefined'
+  ? 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.'
+  : 'Made-up weights: run python3 tools/weight_data.py for real ones.';
+render();
+</script>
+</body>
+</html>
