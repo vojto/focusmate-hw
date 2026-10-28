@@ -53,7 +53,7 @@
 const WIDTH = 320, HEIGHT = 240, PADDING = 12, WEEKS = 8, ROW_HEIGHT = HEIGHT / WEEKS;
 const LABEL_WIDTH = 44, LABEL_SIZE = 13, BAR_HEIGHT = 24, VALUE_SIZE = 20, VALUE_WIDTH = 48;
 const CHEVRON_SIZE = 4, CHEVRON_GAP = 7;  // half its height, and the space on each side
-const GRAY = '#B4B2A9', DIM = '#444441', VALUE_BLUE = '#B5D4F4';
+const WHITE = '#F1EFE8', GRAY = '#B4B2A9', DIM = '#444441';
 // Light to heavy, from the sleep slide's colors (similar brightness on black)
 const WEIGHT_COLORS = ['#59DE65', '#ADE74E', '#FBD530', '#FF9044', '#FC5855'];
 const GREEN = WEIGHT_COLORS[0], RED = WEIGHT_COLORS.at(-1);
@@ -74,13 +74,14 @@ function drawWeights(svg, weeks, today) {
   const color = d3.scaleSequential(d3.piecewise(d3.interpolateLab, WEIGHT_COLORS)).domain(d3.extent(known));
 
   drawRows(svg, weeks, (row, week) => {
-    if (week.kg == null) return text(row, x.range()[0], '--', VALUE_SIZE, VALUE_BLUE);
+    if (week.kg == null) return text(row, x.range()[0], '--', VALUE_SIZE, WHITE);
     for (const [from, to] of segments(x.domain()[0], week.kg)) {
       row.append('rect').attr('x', x(from) + 1).attr('width', x(to) - x(from) - 2)
         .attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT).attr('rx', 3).attr('fill', color(week.kg));
     }
-    const average = text(row, x(week.kg) + 8, week.kg.toFixed(1), VALUE_SIZE, VALUE_BLUE);
-    if (week == weeks[0] && today != null) drawToday(row, average, today);
+    const isFollowedByToday = week == weeks[0] && today != null;
+    const average = text(row, x(week.kg) + 8, week.kg.toFixed(1), VALUE_SIZE, isFollowedByToday ? GRAY : WHITE);
+    if (isFollowedByToday) drawToday(row, average, today);
   });
 }
 
@@ -91,12 +92,12 @@ function segments(start, kg) {
   return d3.range(start, end - 0.01, 0.5).map(from => [from, Math.min(from + 0.5, end)]);
 }
 
-// A small gray chevron after this week's average, then today's weigh-in
+// A small gray chevron after this week's (gray) average, then today's weigh-in
 function drawToday(row, average, kg) {
   const x = +average.attr('x') + average.node().getComputedTextLength() + CHEVRON_GAP;
   row.append('path').attr('d', `M${x},${-CHEVRON_SIZE} l${CHEVRON_SIZE},${CHEVRON_SIZE} l${-CHEVRON_SIZE},${CHEVRON_SIZE}`)
     .attr('fill', 'none').attr('stroke', GRAY).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
-  text(row, x + CHEVRON_SIZE + CHEVRON_GAP, kg.toFixed(1), VALUE_SIZE, VALUE_BLUE);
+  text(row, x + CHEVRON_SIZE + CHEVRON_GAP, kg.toFixed(1), VALUE_SIZE, WHITE);
 }
 
 // MARK: Changes
