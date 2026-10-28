@@ -6,7 +6,7 @@
 <title>Weight Bars Sketch</title>
 <!--
   The weight slide as a horizontal bar chart, on a drawing of the Core2:
-  today's weigh-in, this week's average, then the four weeks before. Real
+  today's weigh-in, this week's average, then the six weeks before. Real
   numbers come from tools/out/weight-data.js, made by tools/weight_data.py and
   gitignored; without it the sketch uses made-up weights.
 -->
@@ -51,7 +51,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="../out/weight-data.js"></script>
 <script>
-const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 6, LABEL_WIDTH = 44, BAR_HEIGHT = 30, VALUE_SIZE = 22;
+const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 8, LABEL_WIDTH = 44, BAR_HEIGHT = 22, VALUE_SIZE = 22;
 const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB', DIM = '#444441', GREEN = '#59DE65', RED = '#FC5855';  // BLUE is SLEEP_BLUE on the dashboard
 const CHANGE_WEEKS = 8, CHANGE_SCALE_STEP = 0.5;  // rows, and the widest bar rounded up to this many kilos
 
@@ -63,7 +63,7 @@ const VARIATIONS = [
   { title: 'Change from the week before', draw: renderChange },
 ];
 
-// Today, this week, then the four weeks before
+// Today, this week, then the six weeks before
 function rowsOf(weights) {
   const today = weights.current_week.days.find(d => d.date == isoDate(new Date()))?.weight_kg ?? null;
   const weeks = [weights.current_week, ...weights.past_weeks];
