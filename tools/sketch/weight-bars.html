@@ -85,10 +85,12 @@ function render() {
     .text(d => d.kg == null ? '--' : d.kg.toFixed(1));
 }
 
-// A bar as [from, to] pieces of half a kilo each, the last one cut at the weight
+// A bar as [from, to] pieces of half a kilo each, the last one cut at the
+// weight rounded to a tenth, so it is never thinner than 100 g
 function segments(start, kg) {
   if (kg == null) return [];
-  return d3.range(start, kg, 0.5).map(from => [from, Math.min(from + 0.5, kg)]);
+  const end = Math.round(kg * 10) / 10;
+  return d3.range(start, end - 0.01, 0.5).map(from => [from, Math.min(from + 0.5, end)]);
 }
 
 // Width of text in the screen's font, in screen pixels
