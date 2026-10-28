@@ -53,7 +53,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="../out/weight-data.js"></script>
 <script>
-const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 6, LABEL_WIDTH = 44, BAR_HEIGHT = 30, BAR_RADIUS = 5, VALUE_SIZE = 22;
+const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 6, LABEL_WIDTH = 44, BAR_HEIGHT = 30, BAR_RADIUS = 3, SEGMENT_GAP = 2, VALUE_SIZE = 22;
 const WHITE = '#F1EFE8', GRAY = '#B4B2A9', DIM = '#444441', BLUE = '#85B7EB';  // SLEEP_BLUE on the dashboard
 
 const data = typeof WEIGHTS !== 'undefined' ? WEIGHTS : madeUpWeights();
@@ -80,10 +80,17 @@ function render() {
     .attr('x1', x).attr('x2', x).attr('y1', 0).attr('y2', HEIGHT).attr('stroke', DIM);  // a line every half kilo, behind the bars
   const row = svg.selectAll('g.row').data(rows).join('g').attr('class', 'row').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
   row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
-  row.append('rect').attr('x', x0).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
-    .attr('width', d => d.kg == null ? 0 : x(d.kg) - x0).attr('rx', BAR_RADIUS).attr('fill', BLUE);
+  row.selectAll('rect').data(d => segments(x.domain()[0], d.kg)).join('rect')
+    .attr('x', ([from]) => x(from) + SEGMENT_GAP / 2).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
+    .attr('width', ([from, to]) => Math.max(x(to) - x(from) - SEGMENT_GAP, 1)).attr('rx', BAR_RADIUS).attr('fill', BLUE);
   row.append('text').attr('x', d => (d.kg == null ? x0 : x(d.kg)) + 8).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', WHITE)
     .text(d => d.kg == null ? '--' : d.kg.toFixed(1));
+}
+
+// A bar as [from, to] pieces of half a kilo each, the last one cut at the weight
+function segments(start, kg) {
+  if (kg == null) return [];
+  return d3.range(start, kg, 0.5).map(from => [from, Math.min(from + 0.5, kg)]);
 }
 
 // Width of text in the screen's font, in screen pixels
