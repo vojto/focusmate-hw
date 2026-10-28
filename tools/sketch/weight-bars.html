@@ -54,7 +54,7 @@
 <script src="../out/weight-data.js"></script>
 <script>
 const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 6, LABEL_WIDTH = 44, BAR_HEIGHT = 30, BAR_RADIUS = 5, VALUE_SIZE = 22;
-const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB';  // SLEEP_BLUE on the dashboard
+const WHITE = '#F1EFE8', GRAY = '#B4B2A9', DIM = '#444441', BLUE = '#85B7EB';  // SLEEP_BLUE on the dashboard
 
 const data = typeof WEIGHTS !== 'undefined' ? WEIGHTS : madeUpWeights();
 const rows = rowsOf(data);
@@ -76,7 +76,9 @@ function render() {
   const x = d3.scaleLinear().domain([Math.floor(d3.min(known)) - 1, Math.ceil(d3.max(known))]).range([x0, WIDTH - PADDING - 8 - valueWidth]);
   const rowHeight = HEIGHT / ROWS;
 
-  const row = svg.selectAll('g').data(rows).join('g').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
+  svg.append('g').selectAll('line').data(d3.range(Math.ceil(x.domain()[0] * 2), x.domain()[1] * 2 + 1).map(n => n / 2)).join('line')
+    .attr('x1', x).attr('x2', x).attr('y1', 0).attr('y2', HEIGHT).attr('stroke', DIM);  // a line every half kilo, behind the bars
+  const row = svg.selectAll('g.row').data(rows).join('g').attr('class', 'row').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
   row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
   row.append('rect').attr('x', x0).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
     .attr('width', d => d.kg == null ? 0 : x(d.kg) - x0).attr('rx', BAR_RADIUS).attr('fill', BLUE);
