@@ -1,5 +1,6 @@
 #include <M5Unified.h>
 #include "debug.h"
+#include "display.h"
 #include "health.h"
 #include "network.h"
 #include "screens.h"
@@ -44,6 +45,7 @@ void setup() {
   M5.Speaker.setVolume(VOLUME);
   M5.Speaker.setChannelVolume(TICK_CHANNEL, TICK_VOLUME);
 
+  startDisplay();
   startNetwork();
   startFetchingSessions();
   startFetchingHealth();

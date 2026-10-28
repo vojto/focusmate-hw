@@ -1,35 +1,29 @@
 #include "display.h"
 
-static int screenShown = SCREEN_NONE;
-static String shownTexts[SLOT_COUNT];
+M5Canvas frame(&M5.Display);
+static String shownKey;
 
-bool enterScreen(int screen) {
-  if (screen == screenShown) return false;
-  screenShown = screen;
-  clearScreen();
+// ~150KB, too big for the normal heap, so it lives in PSRAM
+void startDisplay() {
+  frame.setPsram(true);
+  frame.createSprite(M5.Display.width(), M5.Display.height());
+}
+
+bool isNewFrame(const String &key) {
+  if (key == shownKey) return false;
+  shownKey = key;
+  frame.fillScreen(BACKGROUND);
   return true;
 }
 
-int shownScreen() { return screenShown; }
+void pushFrame() { frame.pushSprite(0, 0); }
 
-void clearScreen() {
-  M5.Display.fillScreen(BACKGROUND);
-  for (String &text : shownTexts) text = "";
-}
+const String &shownFrame() { return shownKey; }
 
-bool isShown(int slot, const String &text) {
-  if (shownTexts[slot] == text) return true;
-  shownTexts[slot] = text;
-  return false;
-}
-
-void drawLine(const TextLine &line, const String &text) {
-  if (isShown(line.slot, text)) return;
-  M5.Display.setFont(line.font);
-  M5.Display.setTextSize(line.size);
-  M5.Display.setTextColor(line.color, BACKGROUND);
-  M5.Display.setTextDatum(middle_center);
-  // Clears the full width, so a shorter text leaves nothing behind from a longer one
-  M5.Display.setTextPadding(M5.Display.width());
-  M5.Display.drawString(text, CENTER_X, line.y);
+int drawText(const String &text, int x, int y, const TextStyle &style, lgfx::textdatum_t datum) {
+  frame.setFont(style.font);
+  frame.setTextSize(1);
+  frame.setTextColor(style.color);
+  frame.setTextDatum(datum);
+  return frame.drawString(text, x, y);
 }

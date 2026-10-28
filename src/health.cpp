@@ -1,82 +1,42 @@
 #include "health.h"
-#include <ArduinoJson.h>
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
-#include "network.h"
+#include "fetcher.h"
 #include "secrets.h"
 
 /*
  * Asks Moonlite's device API for twelve weeks of daily steps, sleep, HRV and
- * resting heart rate every few minutes, in a background task like the session
- * fetch, and keeps today's numbers and the recent weeks' average sleep. A
- * failed fetch keeps the numbers from the last one that worked.
+ * resting heart rate every few minutes, and keeps today's numbers and the
+ * recent weeks' average sleep. A failed fetch keeps the numbers from the last
+ * one that worked.
  */
 
 #define STATS_URL "https://moonlite.im/api/v1/stats"  // ~15KB, the days oldest first and ending today
 #define FETCH_INTERVAL_MS (5 * 60000)  // Moonlite syncs Garmin every 10 minutes, so a new number shows within 15
 #define FETCH_RETRY_MS 30000
-#define TASK_STACK_BYTES 12288         // enough for the TLS handshake
 
-static void fetchTask(void *);
-static bool fetchHealth();
-static bool requestStats(String &json);
+static bool readStats(JsonDocument &json);
 static int lastValue(JsonArray days, const char *key);
 static void averageSleep(JsonArray days, const char *today, int *weeklyMinutes);
 
-// Written by the fetch task, read by the main loop
-static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
-static Health health = {HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING,
-                        {HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING}};
+static Shared<Health> health({HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING,
+                              {HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING, HEALTH_MISSING}});
+static Fetch fetch = {"health", [] { return String(STATS_URL); }, "Authorization", "Bearer " MOONLITE_API_TOKEN,
+                      FETCH_INTERVAL_MS, FETCH_RETRY_MS, readStats};
 
-void startFetchingHealth() { xTaskCreate(fetchTask, "health", TASK_STACK_BYTES, nullptr, 1, nullptr); }
+void startFetchingHealth() { startFetching(fetch); }
 
-Health todaysHealth() {
-  portENTER_CRITICAL(&lock);
-  Health latest = health;
-  portEXIT_CRITICAL(&lock);
-  return latest;
-}
-
-static void fetchTask(void *) {
-  while (true) {
-    if (!isWifiConnected()) {
-      delay(1000);
-      continue;
-    }
-    delay(fetchHealth() ? FETCH_INTERVAL_MS : FETCH_RETRY_MS);
-  }
-}
+Health todaysHealth() { return health.get(); }
 
 // Null values in the JSON become HEALTH_MISSING
-static bool fetchHealth() {
-  String json;
-  if (!requestStats(json)) return false;
-  JsonDocument doc;
-  if (deserializeJson(doc, json)) return false;
-
-  int sleepSeconds = lastValue(doc["sleep"], "sleep_seconds");
+static bool readStats(JsonDocument &json) {
+  int sleepSeconds = lastValue(json["sleep"], "sleep_seconds");
   Health found = {
-    lastValue(doc["steps"], "steps"),
+    lastValue(json["steps"], "steps"),
     sleepSeconds == HEALTH_MISSING ? HEALTH_MISSING : sleepSeconds / 60,
-    lastValue(doc["hrv"], "hrv_ms"),
-    lastValue(doc["resting_heart_rate"], "resting_heart_rate_bpm"),
+    lastValue(json["hrv"], "hrv_ms"),
+    lastValue(json["resting_heart_rate"], "resting_heart_rate_bpm"),
   };
-  averageSleep(doc["sleep"], doc["today"], found.weeklySleepMinutes);
-  portENTER_CRITICAL(&lock);
-  health = found;
-  portEXIT_CRITICAL(&lock);
-  return true;
-}
-
-// The request lives in its own function so its objects are freed between fetches
-static bool requestStats(String &json) {
-  WiFiClientSecure client;
-  client.setInsecure();  // no certificate check
-  HTTPClient http;
-  http.begin(client, STATS_URL);
-  http.addHeader("Authorization", "Bearer " MOONLITE_API_TOKEN);
-  if (http.GET() != HTTP_CODE_OK) return false;
-  json = http.getString();
+  averageSleep(json["sleep"], json["today"], found.weeklySleepMinutes);
+  health.set(found);
   return true;
 }
 

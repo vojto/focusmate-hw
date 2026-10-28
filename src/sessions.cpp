@@ -1,82 +1,74 @@
 #include "sessions.h"
-#include <ArduinoJson.h>
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
+#include "fetcher.h"
 #include "network.h"
 #include "secrets.h"
 
 /*
  * Fetches the booked sessions from Focusmate's API once a minute, in a
- * background task so the screen never waits for the network. The list is
- * shared with the main loop under a lock. It also holds the sessions of the
- * last half day, so a running session can be counted within its block.
+ * background task so the screen never waits for the network. The list also
+ * holds the sessions of the last half day, so a running session can be
+ * counted within its block.
  */
 
 #define SESSIONS_URL "https://api.focusmate.com/v1/sessions"
-#define FETCH_INTERVAL_MS 60000
-#define FETCH_RETRY_MS 10000
 #define LOOKAHEAD_S (24 * 3600)
 #define LOOKBACK_S (12 * 3600)  // far enough to reach the start of the running block
 #define BLOCK_GAP_S (10 * 60)   // the longest break between back-to-back sessions, after a 50-minute one
 #define MAX_SESSIONS 32
-#define TASK_STACK_BYTES 12288  // enough for the TLS handshake
+
+struct SessionList {
+  Session items[MAX_SESSIONS];  // oldest first
+  int count;
+};
 
 static bool isBackToBack(const Session &earlier, const Session &later);
-static void fetchTask(void *);
-static bool fetchSessions();
-static bool requestSessions(String &json);
-static int parseSessions(const String &json, Session *found);
+static String sessionsUrl();
+static bool readSessions(JsonDocument &json);
 static String formatIsoTime(time_t when);
 static time_t parseIsoTime(const char *text);
 static time_t utcSeconds(int year, int month, int day, int hour, int minute, int second);
 
-// Written by the fetch task, read by the main loop. Oldest first.
-static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
-static Session sessions[MAX_SESSIONS];
-static int sessionCount = 0;
-static volatile bool hasFetchFailed = false;
+static Shared<SessionList> sessions(SessionList{});
+static Fetch fetch = {"sessions", sessionsUrl, "X-API-KEY", FOCUSMATE_API_KEY, 60000, 10000, readSessions};
 
 // MARK: Reading and replacing the list
 
-void startFetchingSessions() { xTaskCreate(fetchTask, "fetch", TASK_STACK_BYTES, nullptr, 1, nullptr); }
+void startFetchingSessions() { startFetching(fetch); }
 
 Session currentSession(time_t now) {
+  SessionList list = sessions.get();
   Session current = {};
-  portENTER_CRITICAL(&lock);
-  for (int i = 0; i < sessionCount; i++) {
-    bool isOver = sessions[i].start + sessions[i].seconds <= now;
-    bool isLater = current.isBooked() && sessions[i].start >= current.start;
-    if (!isOver && !isLater) current = sessions[i];
+  for (int i = 0; i < list.count; i++) {
+    bool isOver = list.items[i].start + list.items[i].seconds <= now;
+    bool isLater = current.isBooked() && list.items[i].start >= current.start;
+    if (!isOver && !isLater) current = list.items[i];
   }
-  portEXIT_CRITICAL(&lock);
   return current;
 }
 
 BlockPosition blockPosition(const Session &session) {
+  SessionList list = sessions.get();
   BlockPosition position = {1, 1};
-  portENTER_CRITICAL(&lock);
   int index = 0;
-  while (index < sessionCount && sessions[index].start != session.start) index++;
-  if (index < sessionCount) {
-    for (int i = index; i > 0 && isBackToBack(sessions[i - 1], sessions[i]); i--) position.number++;
-    position.total = position.number;
-    for (int i = index; i + 1 < sessionCount && isBackToBack(sessions[i], sessions[i + 1]); i++) position.total++;
-  }
-  portEXIT_CRITICAL(&lock);
+  while (index < list.count && list.items[index].start != session.start) index++;
+  if (index == list.count) return position;
+  for (int i = index; i > 0 && isBackToBack(list.items[i - 1], list.items[i]); i--) position.number++;
+  position.total = position.number;
+  for (int i = index; i + 1 < list.count && isBackToBack(list.items[i], list.items[i + 1]); i++) position.total++;
   return position;
 }
 
 const char *fetchProblem() {
   if (!isWifiConnected()) return "No Wi-Fi";
-  if (hasFetchFailed) return "Can't reach Focusmate";
+  if (fetch.hasFailed) return "Can't reach Focusmate";
   return "";
 }
 
 void setSessions(const Session *list, int count) {
-  portENTER_CRITICAL(&lock);
-  sessionCount = min(count, MAX_SESSIONS);
-  for (int i = 0; i < sessionCount; i++) sessions[i] = list[i];
-  portEXIT_CRITICAL(&lock);
+  SessionList replaced = {};
+  replaced.count = min(count, MAX_SESSIONS);
+  for (int i = 0; i < replaced.count; i++) replaced.items[i] = list[i];
+  sessions.set(replaced);
 }
 
 static bool isBackToBack(const Session &earlier, const Session &later) {
@@ -85,57 +77,23 @@ static bool isBackToBack(const Session &earlier, const Session &later) {
 
 // MARK: Fetching
 
-static void fetchTask(void *) {
-  while (true) {
-    if (!isWifiConnected() || !isTimeSynced()) {
-      delay(1000);
-      continue;
-    }
-    // The request lives in its own function so its objects are freed between fetches
-    hasFetchFailed = !fetchSessions();
-    delay(hasFetchFailed ? FETCH_RETRY_MS : FETCH_INTERVAL_MS);
-  }
-}
-
-static bool fetchSessions() {
-  String json;
-  Session found[MAX_SESSIONS];
-  if (!requestSessions(json)) return false;
-  int count = parseSessions(json, found);
-  if (count < 0) return false;
-  setSessions(found, count);
-  return true;
-}
-
-// Asks for every session between half a day ago and a day from now
-static bool requestSessions(String &json) {
+// Every session between half a day ago and a day from now
+static String sessionsUrl() {
   time_t now = time(nullptr);
-  String url = String(SESSIONS_URL) + "?start=" + formatIsoTime(now - LOOKBACK_S) + "&end=" + formatIsoTime(now + LOOKAHEAD_S);
-
-  WiFiClientSecure client;
-  client.setInsecure();  // no certificate check
-  HTTPClient http;
-  http.begin(client, url);
-  http.addHeader("X-API-KEY", FOCUSMATE_API_KEY);
-  if (http.GET() != HTTP_CODE_OK) return false;
-  json = http.getString();
-  return true;
+  return String(SESSIONS_URL) + "?start=" + formatIsoTime(now - LOOKBACK_S) + "&end=" + formatIsoTime(now + LOOKAHEAD_S);
 }
 
-// Returns how many sessions it put into `found`, or -1 if the JSON can't be read
-static int parseSessions(const String &json, Session *found) {
-  JsonDocument doc;
-  if (deserializeJson(doc, json)) return -1;
-  JsonArray list = doc["sessions"];
-
-  int count = 0;
+static bool readSessions(JsonDocument &json) {
+  JsonArray list = json["sessions"];
+  SessionList found = {};
   // The list is newest first; walking it backwards keeps the soonest if there are too many
-  for (int i = (int)list.size() - 1; i >= 0 && count < MAX_SESSIONS; i--) {
+  for (int i = (int)list.size() - 1; i >= 0 && found.count < MAX_SESSIONS; i--) {
     time_t start = parseIsoTime(list[i]["startTime"] | "");
     int32_t milliseconds = list[i]["duration"] | 0;
-    if (start > 0) found[count++] = {start, milliseconds / 1000};
+    if (start > 0) found.items[found.count++] = {start, milliseconds / 1000};
   }
-  return count;
+  sessions.set(found);
+  return true;
 }
 
 // MARK: Time helpers

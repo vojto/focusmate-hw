@@ -3,9 +3,8 @@
 
 /*
  * The screens around a session; between sessions the slides take over (see
- * slides.h). Each show function can be called on every loop: it clears the
- * display when coming from another screen and afterwards redraws only what
- * changed.
+ * slides.h). Each show function can be called on every loop: it draws a new
+ * frame only when what it shows changed.
  */
 
 // The time left as minutes:seconds in the middle, with "Session in" in the
