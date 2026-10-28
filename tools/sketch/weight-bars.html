@@ -53,19 +53,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="../out/weight-data.js"></script>
 <script>
-const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 6, LABEL_WIDTH = 44, BAR_HEIGHT = 22, VALUE_SIZE = 22;
-const WHITE = '#F1EFE8', GRAY = '#B4B2A9', GREEN = '#59DE65', RED = '#FC5855';
-const FULL_COLOR_KG = 0.5;  // like WEIGHT_FULL_COLOR_GRAMS on the weight branch
+const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 6, LABEL_WIDTH = 44, BAR_HEIGHT = 30, BAR_RADIUS = 5, VALUE_SIZE = 22;
+const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB';  // SLEEP_BLUE on the dashboard
 
 const data = typeof WEIGHTS !== 'undefined' ? WEIGHTS : madeUpWeights();
 const rows = rowsOf(data);
 
-// Today, this week, then the four weeks before; each knows the row below it to color by change
+// Today, this week, then the four weeks before
 function rowsOf(weights) {
   const today = weights.current_week.days.find(d => d.date == isoDate(new Date()))?.weight_kg ?? null;
   const weeks = [weights.current_week, ...weights.past_weeks];
   const list = [{ label: 'today', kg: today }, ...weeks.slice(0, ROWS - 1).map(w => ({ label: `W${isoWeek(new Date(`${w.week_start_date}T12:00:00`))}`, kg: w.average_weight_kg }))];
-  list.forEach((row, i) => row.before = weeks[Math.max(i, 1)]?.average_weight_kg);
   return list;
 }
 
@@ -81,15 +79,9 @@ function render() {
   const row = svg.selectAll('g').data(rows).join('g').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
   row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
   row.append('rect').attr('x', x0).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
-    .attr('width', d => d.kg == null ? 0 : x(d.kg) - x0).attr('fill', barColor);
+    .attr('width', d => d.kg == null ? 0 : x(d.kg) - x0).attr('rx', BAR_RADIUS).attr('fill', BLUE);
   row.append('text').attr('x', d => (d.kg == null ? x0 : x(d.kg)) + 8).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', WHITE)
     .text(d => d.kg == null ? '--' : d.kg.toFixed(1));
-}
-
-function barColor(row) {
-  if (row.kg == null || row.before == null) return WHITE;
-  const change = row.kg - row.before;
-  return d3.interpolateRgb(WHITE, change < 0 ? GREEN : RED)(Math.min(Math.abs(change), FULL_COLOR_KG) / FULL_COLOR_KG);
 }
 
 // Width of text in the screen's font, in screen pixels
