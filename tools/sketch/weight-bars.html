@@ -52,16 +52,15 @@
 <script src="../out/weight-data.js"></script>
 <script>
 const WIDTH = 320, HEIGHT = 240, PADDING = 12, ROWS = 6, LABEL_WIDTH = 44, BAR_HEIGHT = 30, VALUE_SIZE = 22;
-const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB', TEAL = '#5ECBC4';  // BLUE is SLEEP_BLUE on the dashboard
+const WHITE = '#F1EFE8', GRAY = '#B4B2A9', BLUE = '#85B7EB', DIM = '#444441', GREEN = '#59DE65', RED = '#FC5855';  // BLUE is SLEEP_BLUE on the dashboard
+const CHANGE_WEEKS = 8, CHANGE_SCALE_STEP = 0.5;  // rows, and the widest bar rounded up to this many kilos
 
 const data = typeof WEIGHTS !== 'undefined' ? WEIGHTS : madeUpWeights();
 const rows = rowsOf(data);
 
-// How each bar is cut up: segment size in kilos, the gap and corner radius in
-// screen pixels, and the color of the segment starting at a weight
 const VARIATIONS = [
-  { title: 'Half-kilo segments', step: 0.5, gap: 2, radius: 3, color: () => BLUE },
-  { title: 'Tenth segments, alternating every half kilo', step: 0.1, gap: 1, radius: 1, color: from => Math.floor(from * 2 + 1e-6) % 2 ? TEAL : BLUE },
+  { title: 'Weight, in half-kilo segments', draw: render },
+  { title: 'Change from the week before', draw: renderChange },
 ];
 
 // Today, this week, then the four weeks before
@@ -73,7 +72,7 @@ function rowsOf(weights) {
 }
 
 // Bars start a kilo under the lightest row; from zero they would all look the same
-function render(svg, variation) {
+function render(svg) {
   const known = rows.map(r => r.kg).filter(kg => kg != null);
   const valueWidth = measure('109.0', VALUE_SIZE);
   const x0 = PADDING + LABEL_WIDTH;
@@ -82,20 +81,50 @@ function render(svg, variation) {
 
   const row = svg.selectAll('g.row').data(rows).join('g').attr('class', 'row').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
   row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
-  const { step, gap, radius, color } = variation;
-  row.selectAll('rect').data(d => segments(x.domain()[0], d.kg, step)).join('rect')
-    .attr('x', ([from]) => x(from) + gap / 2).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
-    .attr('width', ([from, to]) => Math.max(x(to) - x(from) - gap, 1)).attr('rx', radius).attr('fill', ([from]) => color(from));
+  row.selectAll('rect').data(d => segments(x.domain()[0], d.kg)).join('rect')
+    .attr('x', ([from]) => x(from) + 1).attr('y', -BAR_HEIGHT / 2).attr('height', BAR_HEIGHT)
+    .attr('width', ([from, to]) => Math.max(x(to) - x(from) - 2, 1)).attr('rx', 3).attr('fill', BLUE);
   row.append('text').attr('x', d => (d.kg == null ? x0 : x(d.kg)) + 8).attr('dy', '0.35em').attr('font-size', VALUE_SIZE).attr('fill', WHITE)
     .text(d => d.kg == null ? '--' : d.kg.toFixed(1));
 }
 
-// A bar as [from, to] pieces of step kilos each, the last one cut at the
+// A bar as [from, to] pieces of half a kilo each, the last one cut at the
 // weight rounded to a tenth, so it is never thinner than 100 g
-function segments(start, kg, step) {
+function segments(start, kg) {
   if (kg == null) return [];
   const end = Math.round(kg * 10) / 10;
-  return d3.range(start, end - 0.01, step).map(from => [from, Math.min(from + step, end)]);
+  return d3.range(start, end - 0.01, 0.5).map(from => [from, Math.min(from + 0.5, end)]);
+}
+
+// MARK: Change
+
+// This week and the seven before, each a bar from the middle of the screen:
+// left and green for a loss, right and red for a gain
+function renderChange(svg) {
+  const changes = weeklyChanges();
+  const mid = WIDTH / 2, half = mid - PADDING - 36 - 6;
+  const widest = Math.max(CHANGE_SCALE_STEP, Math.ceil(d3.max(changes, c => Math.abs(c.kg ?? 0)) / CHANGE_SCALE_STEP) * CHANGE_SCALE_STEP);
+  const x = d3.scaleLinear().domain([-widest, widest]).range([mid - half, mid + half]);
+  const rowHeight = HEIGHT / CHANGE_WEEKS;
+
+  svg.append('line').attr('x1', mid).attr('x2', mid).attr('y1', 0).attr('y2', HEIGHT).attr('stroke', DIM);
+  const row = svg.selectAll('g.change').data(changes).join('g').attr('class', 'change').attr('transform', (_, i) => `translate(0, ${i * rowHeight + rowHeight / 2})`);
+  row.append('text').attr('x', PADDING).attr('dy', '0.35em').attr('font-size', 13).attr('fill', GRAY).text(d => d.label);
+  row.filter(d => d.kg != null).append('rect').attr('y', -rowHeight / 2 + 3).attr('height', rowHeight - 6).attr('rx', 3)
+    .attr('x', d => Math.min(mid, x(d.kg))).attr('width', d => Math.max(Math.abs(x(d.kg) - mid), 2)).attr('fill', d => d.kg <= 0 ? GREEN : RED);
+  row.append('text').attr('x', WIDTH - PADDING).attr('dy', '0.35em').attr('text-anchor', 'end').attr('font-size', 13).attr('fill', GRAY)
+    .text(d => d.kg == null ? '--' : `${d.kg <= 0 ? '−' : '+'}${Math.abs(d.kg).toFixed(1)}`);
+}
+
+// Each week's average against the closest week before it with a weigh-in,
+// per week, so a missing week doesn't double the next one's change
+function weeklyChanges() {
+  const weeks = [data.current_week, ...data.past_weeks];
+  return weeks.slice(0, CHANGE_WEEKS).map((week, i) => {
+    const before = weeks.findIndex((w, j) => j > i && w.average_weight_kg != null);
+    const kg = week.average_weight_kg == null || before < 0 ? null : (week.average_weight_kg - weeks[before].average_weight_kg) / (before - i);
+    return { label: `W${isoWeek(new Date(`${week.week_start_date}T12:00:00`))}`, kg };
+  });
 }
 
 // Width of text in the screen's font, in screen pixels
@@ -137,7 +166,7 @@ VARIATIONS.forEach(variation => {
   const svg = glass.append('div').attr('class', 'screen').append('svg').attr('viewBox', `0 0 ${WIDTH} ${HEIGHT}`);
   glass.append('div').attr('class', 'buttons').html('<span></span><span></span><span></span>');
   figure.append('figcaption').text(variation.title);
-  render(svg, variation);
+  variation.draw(svg);
 });
 </script>
 </body>
