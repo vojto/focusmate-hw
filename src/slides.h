@@ -4,7 +4,7 @@
 /*
  * What the screen shows between sessions: slides that take turns every
  * minute, or sooner on a tap. Coming back from a session starts again from the
- * first. A notice, when there is one, is an orange bar across the top of every
+ * first, and so does a tap on the countdown before a session. A notice, when there is one, is an orange bar across the top of every
  * slide.
  */
 

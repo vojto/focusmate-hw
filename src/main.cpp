@@ -10,8 +10,9 @@
 /*
  * Focusmate session display for an M5Stack Core2. The loop looks at the
  * session that is running or comes next and decides everything from it: which
- * screen to show (a pie during a session, a countdown before one, otherwise a
- * the slides) and when to chime and tick.
+ * screen to show (a pie during a session, a countdown before one, otherwise
+ * the slides) and when to chime and tick. A tap on the countdown shows the
+ * slides for a while.
  */
 
 #define COUNTDOWN_S 600     // a session starting within this gets the countdown
@@ -24,8 +25,10 @@
 #define TICK_HZ 1500
 #define TICK_MS 4
 #define TICK_CHANNEL 0      // the chimes take free channels from 7 down
+#define PEEK_MS 60000       // after a tap on the countdown, the slides stay this long since the last tap
 #define LOOP_MS 20          // short, so the ticks land evenly
 
+static bool isPeekingAtSlides();
 static void playChimes(const Session &session, time_t now);
 static void playTick(const Session &session, time_t now);
 static void playNotes(std::initializer_list<int> frequencies);
@@ -55,11 +58,22 @@ void loop() {
   playTick(session, now);
 
   if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session));
-  else if (session.isStartingWithin(COUNTDOWN_S, now)) showCountdown(session.start - now, blockPosition(session));
+  else if (session.isStartingWithin(COUNTDOWN_S, now)) {
+    if (isPeekingAtSlides()) showSlides(now, fetchProblem());
+    else showCountdown(session.start - now, blockPosition(session));
+  }
   else showSlides(now, fetchProblem());
 
   playChimes(session, now);
   delay(LOOP_MS);
+}
+
+// A tap on the countdown opens the slides, where taps move on as usual, until
+// a minute passes without one
+static bool isPeekingAtSlides() {
+  static uint32_t tappedAt = 0;
+  if (M5.Touch.getDetail().wasPressed()) tappedAt = millis();
+  return tappedAt && millis() - tappedAt < PEEK_MS;
 }
 
 // Start chimes and an end warning, each once per session

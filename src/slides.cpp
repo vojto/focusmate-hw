@@ -65,11 +65,12 @@ static uint32_t slideShownAt = 0;
 void showSlides(time_t now, const char *notice) {
   static String shownNotice;
   bool isBackFromSession = shownScreen() < SCREEN_SLIDE;
+  bool wasTapped = M5.Touch.getDetail().wasPressed();
+  // Also for the tap that opens the slides from the countdown
+  if (wasTapped) M5.Speaker.tone(TAP_HZ, TAP_MS);
   if (isBackFromSession) showSlide(0);
-  else if (M5.Touch.getDetail().wasPressed()) {
-    M5.Speaker.tone(TAP_HZ, TAP_MS);
-    nextSlide();
-  } else if (millis() - slideShownAt >= SLIDE_MS) nextSlide();
+  else if (wasTapped) nextSlide();
+  else if (millis() - slideShownAt >= SLIDE_MS) nextSlide();
 
   bool isFirstDraw = enterScreen(SCREEN_SLIDE + slide);
   // The notice bar crosses the slide, so a change redraws everything
