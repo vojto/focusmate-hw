@@ -63,7 +63,7 @@ const SKETCHES = [
   ['Columns, this week on the right', drawColumns],
   ['Range: lightest to heaviest, a bar at the average', drawRanges],
   ['Dots: every weigh-in, a line at the average', drawDots],
-  ['Box: middle half, whiskers to the ends, a line at the average', drawBoxes],
+  ['Faded range, a thick line at the average', drawBoxes],
 ];
 
 // MARK: Weights
@@ -105,6 +105,7 @@ function drawToday(row, average, kg) {
 
 // MARK: Columns
 
+const RANGE_OPACITY = 0.5, AVERAGE_THICKNESS = 4;
 const BAR_GAP = 4, BAR_WIDTH = (WIDTH - 2 * PADDING - (WEEKS - 1) * BAR_GAP) / WEEKS, COLUMN_VALUE_SIZE = 13, AXIS_HEIGHT = 22, VALUE_GAP = 5;
 
 // A column per week, oldest on the left, with the week's average (so far, for
@@ -170,14 +171,14 @@ function drawDots(svg, weeks) {
   });
 }
 
+// A faded line from the lightest to the heaviest weigh-in and a thick one
+// across it at the average
 function drawBoxes(svg, weeks) {
   drawSpread(svg, weeks, (column, days, kg, y, color) => {
-    const [low, high] = [0.25, 0.75].map(q => d3.quantile(days, q));
-    column.append('line').attr('y1', y(days[0])).attr('y2', y(days.at(-1))).attr('stroke', color).attr('stroke-width', 1.5);
-    column.append('rect').attr('x', -BAR_WIDTH / 2 + 3).attr('width', BAR_WIDTH - 6).attr('y', y(high))
-      .attr('height', Math.max(y(low) - y(high), 2)).attr('rx', 2).attr('fill', color);
+    column.append('line').attr('y1', y(days[0])).attr('y2', y(days.at(-1)))
+      .attr('stroke', color).attr('stroke-width', 1.5).attr('opacity', RANGE_OPACITY);
     column.append('line').attr('x1', -BAR_WIDTH / 2 + 3).attr('x2', BAR_WIDTH / 2 - 3).attr('y1', y(kg)).attr('y2', y(kg))
-      .attr('stroke', '#000').attr('stroke-width', 2);
+      .attr('stroke', color).attr('stroke-width', AVERAGE_THICKNESS);
   });
 }
 
