@@ -61,6 +61,9 @@ const GREEN = WEIGHT_COLORS[0], RED = WEIGHT_COLORS.at(-1);
 const SKETCHES = [
   ['Weight, in half-kilo segments', drawWeights],
   ['Columns, this week on the right', drawColumns],
+  ['Range: lightest to heaviest, a bar at the average', drawRanges],
+  ['Dots: every weigh-in, a line at the average', drawDots],
+  ['Box: middle half, whiskers to the ends, a line at the median', drawBoxes],
 ];
 
 // MARK: Weights
@@ -129,6 +132,56 @@ function drawColumns(svg, weeks) {
   });
 }
 
+// MARK: Spread
+
+// Each week's weigh-ins on one scale, with the average on top. Past weeks
+// whose days Foodmark doesn't send yet get made-up ones around their average.
+function drawSpread(svg, weeks, drawWeek) {
+  const all = weeks.flatMap(w => w.days);
+  const y = d3.scaleLinear().domain([Math.floor(d3.min(all) * 2) / 2, Math.ceil(d3.max(all) * 2) / 2])
+    .range([HEIGHT - AXIS_HEIGHT - VALUE_GAP, PADDING + COLUMN_VALUE_SIZE + VALUE_GAP]);
+  const known = weeks.map(w => w.kg).filter(kg => kg != null);
+  const color = d3.scaleSequential(d3.piecewise(d3.interpolateLab, WEIGHT_COLORS)).domain(d3.extent(known));
+
+  weeks.slice().reverse().forEach((week, i) => {
+    const column = svg.append('g').attr('transform', `translate(${PADDING + i * (BAR_WIDTH + BAR_GAP) + BAR_WIDTH / 2}, 0)`);
+    text(column, 0, week.label, LABEL_SIZE, week.isMadeUp ? DIM : GRAY).attr('y', HEIGHT - AXIS_HEIGHT / 2).attr('text-anchor', 'middle');
+    if (week.kg == null || !week.days.length) return;
+    drawWeek(column, week.days.slice().sort(d3.ascending), week.kg, y, color(week.kg));
+    text(column, 0, week.kg.toFixed(1), COLUMN_VALUE_SIZE, WHITE)
+      .attr('y', y(d3.max(week.days)) - VALUE_GAP - 2).attr('dy', null).attr('text-anchor', 'middle');
+  });
+}
+
+function drawRanges(svg, weeks) {
+  drawSpread(svg, weeks, (column, days, kg, y, color) => {
+    column.append('rect').attr('x', -1.5).attr('width', 3).attr('y', y(days.at(-1)))
+      .attr('height', Math.max(y(days[0]) - y(days.at(-1)), 1)).attr('rx', 1.5).attr('fill', color);
+    column.append('rect').attr('x', -BAR_WIDTH / 2 + 4).attr('width', BAR_WIDTH - 8).attr('y', y(kg) - 2.5)
+      .attr('height', 5).attr('rx', 2).attr('fill', color);
+  });
+}
+
+function drawDots(svg, weeks) {
+  drawSpread(svg, weeks, (column, days, kg, y, color) => {
+    column.append('line').attr('x1', -BAR_WIDTH / 2 + 2).attr('x2', BAR_WIDTH / 2 - 2).attr('y1', y(kg)).attr('y2', y(kg))
+      .attr('stroke', WHITE).attr('stroke-width', 1.5);
+    // Spread sideways so equal days don't hide each other
+    days.forEach((kg, i) => column.append('circle').attr('cx', (i % 3 - 1) * 7).attr('cy', y(kg)).attr('r', 3).attr('fill', color));
+  });
+}
+
+function drawBoxes(svg, weeks) {
+  drawSpread(svg, weeks, (column, days, kg, y, color) => {
+    const [low, mid, high] = [0.25, 0.5, 0.75].map(q => d3.quantile(days, q));
+    column.append('line').attr('y1', y(days[0])).attr('y2', y(days.at(-1))).attr('stroke', color).attr('stroke-width', 1.5);
+    column.append('rect').attr('x', -BAR_WIDTH / 2 + 3).attr('width', BAR_WIDTH - 6).attr('y', y(high))
+      .attr('height', Math.max(y(low) - y(high), 2)).attr('rx', 2).attr('fill', color);
+    column.append('line').attr('x1', -BAR_WIDTH / 2 + 3).attr('x2', BAR_WIDTH / 2 - 3).attr('y1', y(mid)).attr('y2', y(mid))
+      .attr('stroke', '#000').attr('stroke-width', 2);
+  });
+}
+
 // MARK: Drawing
 
 // A row per week with its gray label; draw(row, week) adds the rest, with y 0
@@ -157,8 +210,20 @@ function weeksOf(weights) {
     const kg = week.average_weight_kg;
     const before = all.findIndex((w, j) => j > i && w.average_weight_kg != null);
     const change = kg == null || before < 0 ? null : (kg - all[before].average_weight_kg) / (before - i);
-    return { label: `W${isoWeek(new Date(`${week.week_start_date}T12:00:00`))}`, kg, change };
+    const known = (week.days ?? []).map(d => d.weight_kg).filter(kg => kg != null);
+    const isMadeUp = !week.days && kg != null;
+    const days = isMadeUp ? madeUpDays(kg, i) : known;
+    return { label: `W${isoWeek(new Date(`${week.week_start_date}T12:00:00`))}`, kg, change, days, isMadeUp };
   });
+}
+
+// Five to seven days within about a kilo, shifted so they average to kg.
+// Seeded by the week, so they don't change on reload.
+function madeUpDays(kg, seed) {
+  const random = d3.randomLcg(seed / 10 + 0.05);
+  const days = d3.range(5 + seed % 3).map(() => kg + (random() - 0.5) * 1.2);
+  const shift = kg - d3.mean(days);
+  return days.map(d => d + shift);
 }
 
 function todayOf(weights) {
@@ -178,7 +243,8 @@ function isoWeek(date) {
 if (typeof WEIGHTS == 'undefined') {
   document.getElementById('source').textContent = 'No weights yet: run python3 tools/weight_data.py.';
 } else {
-  document.getElementById('source').textContent = 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.';
+  document.getElementById('source').textContent = 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.'
+    + ' Weeks with dim labels have made-up days around their real average until Foodmark sends them.';
   const weeks = weeksOf(WEIGHTS), today = todayOf(WEIGHTS);
   for (const [title, draw] of SKETCHES) {
     const figure = d3.select('.variations').append('figure');
