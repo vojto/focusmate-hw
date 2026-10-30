@@ -102,10 +102,11 @@ function drawToday(row, average, kg) {
 
 // MARK: Columns
 
-const COLUMN_WIDTH = WIDTH / WEEKS, BAR_WIDTH = 28, COLUMN_VALUE_SIZE = 13, AXIS_HEIGHT = 22, VALUE_GAP = 5;
+const BAR_GAP = 2, BAR_WIDTH = (WIDTH - 2 * PADDING - (WEEKS - 1) * BAR_GAP) / WEEKS, COLUMN_VALUE_SIZE = 13, AXIS_HEIGHT = 22, VALUE_GAP = 5;
 
 // A column per week, oldest on the left, with the week's average (so far, for
-// this week) on top and its label under it. Like the rows, they start a kilo
+// this week) on top and its label under it. The gap between columns is set
+// and their width is what is left of the screen. Like the rows, they start a kilo
 // under the lightest week and go from green for the lightest to red.
 function drawColumns(svg, weeks) {
   const known = weeks.map(w => w.kg).filter(kg => kg != null);
@@ -114,7 +115,7 @@ function drawColumns(svg, weeks) {
   const color = d3.scaleSequential(d3.piecewise(d3.interpolateLab, WEIGHT_COLORS)).domain(d3.extent(known));
 
   weeks.slice().reverse().forEach((week, i) => {
-    const column = svg.append('g').attr('transform', `translate(${(i + 0.5) * COLUMN_WIDTH}, 0)`);
+    const column = svg.append('g').attr('transform', `translate(${PADDING + i * (BAR_WIDTH + BAR_GAP) + BAR_WIDTH / 2}, 0)`);
     text(column, 0, week.label, LABEL_SIZE, GRAY).attr('y', HEIGHT - AXIS_HEIGHT / 2).attr('text-anchor', 'middle');
     if (week.kg == null) {
       text(column, 0, '--', COLUMN_VALUE_SIZE, WHITE).attr('y', y.range()[0] - COLUMN_VALUE_SIZE).attr('text-anchor', 'middle');
