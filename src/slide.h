@@ -12,7 +12,7 @@ struct Slide {
   void (*draw)(time_t now);
 };
 
-extern const Slide DASHBOARD_SLIDE, SLEEP_SLIDE, WEIGHT_SLIDE;
+extern const Slide DASHBOARD_SLIDE, SLEEP_SLIDE, WEIGHT_SLIDE, WEIGHT_RANGE_SLIDE;
 
 // The ISO week number: "W43". 0 is this week, 1 the week before.
 String weekLabel(time_t now, int week);

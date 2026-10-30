@@ -13,7 +13,8 @@ const uint32_t NOTICE_ORANGE = 0xEF9F27;
 #define SLIDE_MS 60000          // how long a slide stays
 #define NOTICE_HEIGHT 20        // a bar across the top, above the first row's text
 
-const Slide *const SLIDES[] = {&DASHBOARD_SLIDE, &SLEEP_SLIDE, &WEIGHT_SLIDE};
+// &WEIGHT_SLIDE, the weekly averages as rows of bars, is off for now (2026-10-30)
+const Slide *const SLIDES[] = {&DASHBOARD_SLIDE, &SLEEP_SLIDE, &WEIGHT_RANGE_SLIDE};
 const int SLIDE_COUNT = sizeof(SLIDES) / sizeof(SLIDES[0]);
 
 static void showSlide(int index);
