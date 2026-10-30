@@ -63,7 +63,7 @@ const SKETCHES = [
   ['Columns, this week on the right', drawColumns],
   ['Range: lightest to heaviest, a bar at the average', drawRanges],
   ['Dots: every weigh-in, a line at the average', drawDots],
-  ['Faded range, a thick line at the average', drawBoxes],
+  ['Faded range, a thick line at the average, colored by the change', drawBoxes],
 ];
 
 // MARK: Weights
@@ -105,7 +105,7 @@ function drawToday(row, average, kg) {
 
 // MARK: Columns
 
-const RANGE_OPACITY = 0.5, AVERAGE_THICKNESS = 4;
+const RANGE_OPACITY = 0.5, AVERAGE_THICKNESS = 4, CHANGE_RANGE = 0.5;  // kg a week
 const BAR_GAP = 4, BAR_WIDTH = (WIDTH - 2 * PADDING - (WEEKS - 1) * BAR_GAP) / WEEKS, COLUMN_VALUE_SIZE = 13, AXIS_HEIGHT = 22, VALUE_GAP = 5;
 
 // A column per week, oldest on the left, with the week's average (so far, for
@@ -136,18 +136,19 @@ function drawColumns(svg, weeks) {
 // MARK: Spread
 
 // Each week's weigh-ins on one scale, with the average on top
-function drawSpread(svg, weeks, drawWeek) {
+function drawSpread(svg, weeks, drawWeek, colorOf) {
   const all = weeks.flatMap(w => w.days);
   const y = d3.scaleLinear().domain([Math.floor(d3.min(all) * 2) / 2, Math.ceil(d3.max(all) * 2) / 2])
     .range([HEIGHT - AXIS_HEIGHT - VALUE_GAP, PADDING + COLUMN_VALUE_SIZE + VALUE_GAP]);
   const known = weeks.map(w => w.kg).filter(kg => kg != null);
-  const color = d3.scaleSequential(d3.piecewise(d3.interpolateLab, WEIGHT_COLORS)).domain(d3.extent(known));
+  const byWeight = d3.scaleSequential(d3.piecewise(d3.interpolateLab, WEIGHT_COLORS)).domain(d3.extent(known));
+  colorOf ??= week => byWeight(week.kg);
 
   weeks.slice().reverse().forEach((week, i) => {
     const column = svg.append('g').attr('transform', `translate(${PADDING + i * (BAR_WIDTH + BAR_GAP) + BAR_WIDTH / 2}, 0)`);
     text(column, 0, week.label, LABEL_SIZE, GRAY).attr('y', HEIGHT - AXIS_HEIGHT / 2).attr('text-anchor', 'middle');
     if (week.kg == null || !week.days.length) return;
-    drawWeek(column, week.days.slice().sort(d3.ascending), week.kg, y, color(week.kg));
+    drawWeek(column, week.days.slice().sort(d3.ascending), week.kg, y, colorOf(week));
     text(column, 0, week.kg.toFixed(1), COLUMN_VALUE_SIZE, WHITE)
       .attr('y', y(d3.max(week.days)) - VALUE_GAP - 2).attr('dy', null).attr('text-anchor', 'middle');
   });
@@ -172,14 +173,16 @@ function drawDots(svg, weeks) {
 }
 
 // A faded line from the lightest to the heaviest weigh-in and a thick one
-// across it at the average
+// across it at the average, colored by the change from the week before:
+// green for a loss of CHANGE_RANGE or more, red for a gain of as much
 function drawBoxes(svg, weeks) {
+  const byChange = d3.scaleSequential(d3.piecewise(d3.interpolateLab, WEIGHT_COLORS)).domain([-CHANGE_RANGE, CHANGE_RANGE]).clamp(true);
   drawSpread(svg, weeks, (column, days, kg, y, color) => {
     column.append('line').attr('y1', y(days[0])).attr('y2', y(days.at(-1)))
       .attr('stroke', color).attr('stroke-width', 1.5).attr('opacity', RANGE_OPACITY);
     column.append('line').attr('x1', -BAR_WIDTH / 2 + 3).attr('x2', BAR_WIDTH / 2 - 3).attr('y1', y(kg)).attr('y2', y(kg))
       .attr('stroke', color).attr('stroke-width', AVERAGE_THICKNESS);
-  });
+  }, week => week.change == null ? GRAY : byChange(week.change));
 }
 
 // MARK: Drawing
