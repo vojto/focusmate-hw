@@ -135,7 +135,7 @@ function drawColumns(svg, weeks) {
 
 // MARK: Spread
 
-// Each week's weigh-ins on one scale, with the average on top
+// Each week's weigh-ins on one scale, with the average on top in the week's color
 function drawSpread(svg, weeks, drawWeek, colorOf) {
   const all = weeks.flatMap(w => w.days);
   const y = d3.scaleLinear().domain([Math.floor(d3.min(all) * 2) / 2, Math.ceil(d3.max(all) * 2) / 2])
@@ -148,8 +148,9 @@ function drawSpread(svg, weeks, drawWeek, colorOf) {
     const column = svg.append('g').attr('transform', `translate(${PADDING + i * (BAR_WIDTH + BAR_GAP) + BAR_WIDTH / 2}, 0)`);
     text(column, 0, week.label, LABEL_SIZE, GRAY).attr('y', HEIGHT - AXIS_HEIGHT / 2).attr('text-anchor', 'middle');
     if (week.kg == null || !week.days.length) return;
-    drawWeek(column, week.days.slice().sort(d3.ascending), week.kg, y, colorOf(week));
-    text(column, 0, week.kg.toFixed(1), COLUMN_VALUE_SIZE, WHITE)
+    const color = colorOf(week);
+    drawWeek(column, week.days.slice().sort(d3.ascending), week.kg, y, color);
+    text(column, 0, week.kg.toFixed(1), COLUMN_VALUE_SIZE, color)
       .attr('y', y(d3.max(week.days)) - VALUE_GAP - 2).attr('dy', null).attr('text-anchor', 'middle');
   });
 }
