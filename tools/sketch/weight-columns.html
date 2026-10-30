@@ -134,8 +134,7 @@ function drawColumns(svg, weeks) {
 
 // MARK: Spread
 
-// Each week's weigh-ins on one scale, with the average on top. Past weeks
-// whose days Foodmark doesn't send yet get made-up ones around their average.
+// Each week's weigh-ins on one scale, with the average on top
 function drawSpread(svg, weeks, drawWeek) {
   const all = weeks.flatMap(w => w.days);
   const y = d3.scaleLinear().domain([Math.floor(d3.min(all) * 2) / 2, Math.ceil(d3.max(all) * 2) / 2])
@@ -145,7 +144,7 @@ function drawSpread(svg, weeks, drawWeek) {
 
   weeks.slice().reverse().forEach((week, i) => {
     const column = svg.append('g').attr('transform', `translate(${PADDING + i * (BAR_WIDTH + BAR_GAP) + BAR_WIDTH / 2}, 0)`);
-    text(column, 0, week.label, LABEL_SIZE, week.isMadeUp ? DIM : GRAY).attr('y', HEIGHT - AXIS_HEIGHT / 2).attr('text-anchor', 'middle');
+    text(column, 0, week.label, LABEL_SIZE, GRAY).attr('y', HEIGHT - AXIS_HEIGHT / 2).attr('text-anchor', 'middle');
     if (week.kg == null || !week.days.length) return;
     drawWeek(column, week.days.slice().sort(d3.ascending), week.kg, y, color(week.kg));
     text(column, 0, week.kg.toFixed(1), COLUMN_VALUE_SIZE, WHITE)
@@ -210,20 +209,9 @@ function weeksOf(weights) {
     const kg = week.average_weight_kg;
     const before = all.findIndex((w, j) => j > i && w.average_weight_kg != null);
     const change = kg == null || before < 0 ? null : (kg - all[before].average_weight_kg) / (before - i);
-    const known = (week.days ?? []).map(d => d.weight_kg).filter(kg => kg != null);
-    const isMadeUp = !week.days && kg != null;
-    const days = isMadeUp ? madeUpDays(kg, i) : known;
-    return { label: `W${isoWeek(new Date(`${week.week_start_date}T12:00:00`))}`, kg, change, days, isMadeUp };
+    const days = week.days.map(d => d.weight_kg).filter(kg => kg != null);
+    return { label: `W${isoWeek(new Date(`${week.week_start_date}T12:00:00`))}`, kg, change, days };
   });
-}
-
-// Five to seven days within about a kilo, shifted so they average to kg.
-// Seeded by the week, so they don't change on reload.
-function madeUpDays(kg, seed) {
-  const random = d3.randomLcg(seed / 10 + 0.05);
-  const days = d3.range(5 + seed % 3).map(() => kg + (random() - 0.5) * 1.2);
-  const shift = kg - d3.mean(days);
-  return days.map(d => d + shift);
 }
 
 function todayOf(weights) {
@@ -243,8 +231,7 @@ function isoWeek(date) {
 if (typeof WEIGHTS == 'undefined') {
   document.getElementById('source').textContent = 'No weights yet: run python3 tools/weight_data.py.';
 } else {
-  document.getElementById('source').textContent = 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.'
-    + ' Weeks with dim labels have made-up days around their real average until Foodmark sends them.';
+  document.getElementById('source').textContent = 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.';
   const weeks = weeksOf(WEIGHTS), today = todayOf(WEIGHTS);
   for (const [title, draw] of SKETCHES) {
     const figure = d3.select('.variations').append('figure');
