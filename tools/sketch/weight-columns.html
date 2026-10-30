@@ -63,7 +63,7 @@ const SKETCHES = [
   ['Columns, this week on the right', drawColumns],
   ['Range: lightest to heaviest, a bar at the average', drawRanges],
   ['Dots: every weigh-in, a line at the average', drawDots],
-  ['Box: middle half, whiskers to the ends, a line at the median', drawBoxes],
+  ['Box: middle half, whiskers to the ends, a line at the average', drawBoxes],
 ];
 
 // MARK: Weights
@@ -172,11 +172,11 @@ function drawDots(svg, weeks) {
 
 function drawBoxes(svg, weeks) {
   drawSpread(svg, weeks, (column, days, kg, y, color) => {
-    const [low, mid, high] = [0.25, 0.5, 0.75].map(q => d3.quantile(days, q));
+    const [low, high] = [0.25, 0.75].map(q => d3.quantile(days, q));
     column.append('line').attr('y1', y(days[0])).attr('y2', y(days.at(-1))).attr('stroke', color).attr('stroke-width', 1.5);
     column.append('rect').attr('x', -BAR_WIDTH / 2 + 3).attr('width', BAR_WIDTH - 6).attr('y', y(high))
       .attr('height', Math.max(y(low) - y(high), 2)).attr('rx', 2).attr('fill', color);
-    column.append('line').attr('x1', -BAR_WIDTH / 2 + 3).attr('x2', BAR_WIDTH / 2 - 3).attr('y1', y(mid)).attr('y2', y(mid))
+    column.append('line').attr('x1', -BAR_WIDTH / 2 + 3).attr('x2', BAR_WIDTH / 2 - 3).attr('y1', y(kg)).attr('y2', y(kg))
       .attr('stroke', '#000').attr('stroke-width', 2);
   });
 }
