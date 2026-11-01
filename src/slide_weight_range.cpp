@@ -3,8 +3,8 @@
 
 /*
  * A column per week, this week on the right: a faded line from the week's
- * lightest weigh-in to its heaviest, a thick line across it at the average,
- * and the average above. Colored by the change from the week before, green for
+ * lightest weigh-in to its heaviest, a bar from the week before's average to
+ * this week's (at least CHANGE_MIN_HEIGHT tall), and the average above. Colored by the change from the week before, green for
  * a loss of CHANGE_RANGE_GRAMS or more to red for a gain of as much. See
  * tools/sketch/weight-columns.html.
  */
@@ -17,8 +17,8 @@ const int RANGE_COLOR_COUNT = sizeof(RANGE_COLORS) / sizeof(RANGE_COLORS[0]);
 #define COLUMN_GAP 4
 #define AXIS_HEIGHT 22          // the week labels under the columns
 #define VALUE_GAP 5             // between the columns and the text
-#define AVERAGE_THICKNESS 4
-#define AVERAGE_INSET 3         // on each side of the average line
+#define CHANGE_MIN_HEIGHT 4     // so a week without change still shows
+#define CHANGE_INSET 3          // on each side of the change bar
 #define RANGE_RADIUS 0.75f      // half the range line's width
 #define RANGE_FADE 0.5f         // how much of the range line's color is left
 #define CHANGE_RANGE_GRAMS 500  // a week's change that is all green or all red
@@ -44,6 +44,7 @@ static void drawColumn(float x, int week, const Weight &weight, const Scale &sca
 static float columnWidth();
 static Scale scaleOf(const Weight &weight);
 static uint32_t changeColor(const Weight &weight, int week);
+static int gramsBefore(const Weight &weight, int week);
 static String kilograms(int grams);
 static uint32_t blend(uint32_t from, uint32_t to, float amount);
 
@@ -73,9 +74,13 @@ static void drawColumn(float x, int week, const Weight &weight, const Scale &sca
   uint32_t color = changeColor(weight, week);
   float top = scale.y(weight.heaviestGrams[week]);
   frame.drawWideLine(x, top, x, scale.y(weight.lightestGrams[week]), RANGE_RADIUS, blend(BACKGROUND, color, RANGE_FADE));
-  int left = lroundf(x - columnWidth() / 2 + AVERAGE_INSET), right = lroundf(x + columnWidth() / 2 - AVERAGE_INSET);
-  frame.fillRect(left, lroundf(scale.y(grams) - AVERAGE_THICKNESS / 2.0f), right - left, AVERAGE_THICKNESS, color);
-  drawText(kilograms(grams), lroundf(x), lroundf(top) - VALUE_GAP, {AVERAGE_FONT, color}, bottom_center);
+  int before = gramsBefore(weight, week) == WEIGHT_MISSING ? grams : gramsBefore(weight, week);
+  float barTop = min(scale.y(grams), scale.y(before)), barBottom = max(scale.y(grams), scale.y(before));
+  float growth = max(0.0f, CHANGE_MIN_HEIGHT - (barBottom - barTop)) / 2;
+  int left = lroundf(x - columnWidth() / 2 + CHANGE_INSET), right = lroundf(x + columnWidth() / 2 - CHANGE_INSET);
+  int y = lroundf(barTop - growth);
+  frame.fillRect(left, y, right - left, lroundf(barBottom + growth) - y, color);
+  drawText(kilograms(grams), lroundf(x), min((int)lroundf(top), y) - VALUE_GAP, {AVERAGE_FONT, color}, bottom_center);
 }
 
 // The gap between columns is set; their width is what is left of the screen
@@ -90,17 +95,27 @@ static Scale scaleOf(const Weight &weight) {
     heaviest = max(heaviest, weight.heaviestGrams[week]);
   }
   if (heaviest == 0) return {0, SCALE_STEP_GRAMS};
+  // The oldest week's bar starts at the week before it
+  if (weight.earlierGrams != WEIGHT_MISSING) {
+    lightest = min(lightest, weight.earlierGrams);
+    heaviest = max(heaviest, weight.earlierGrams);
+  }
   return {lightest / SCALE_STEP_GRAMS * SCALE_STEP_GRAMS, (heaviest / SCALE_STEP_GRAMS + 1) * SCALE_STEP_GRAMS};
 }
 
 // Gray when there is no week before to compare with
 static uint32_t changeColor(const Weight &weight, int week) {
-  int before = week + 1 < WEIGHT_WEEKS ? weight.weeklyGrams[week + 1] : weight.earlierGrams;
+  int before = gramsBefore(weight, week);
   if (before == WEIGHT_MISSING) return TEXT_GRAY;
   float amount = constrain((weight.weeklyGrams[week] - before) / (2.0f * CHANGE_RANGE_GRAMS) + 0.5f, 0.0f, 1.0f);
   float position = amount * (RANGE_COLOR_COUNT - 1);
   int from = min((int)position, RANGE_COLOR_COUNT - 2);
   return blend(RANGE_COLORS[from], RANGE_COLORS[from + 1], position - from);
+}
+
+// The average of the week before, or WEIGHT_MISSING
+static int gramsBefore(const Weight &weight, int week) {
+  return week + 1 < WEIGHT_WEEKS ? weight.weeklyGrams[week + 1] : weight.earlierGrams;
 }
 
 // "107.4"
