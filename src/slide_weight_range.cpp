@@ -36,7 +36,7 @@ const int RANGE_COLOR_COUNT = sizeof(RANGE_COLORS) / sizeof(RANGE_COLORS[0]);
 // Font2: "107.4" is 37px, which fits a 33.5px column and its gap; FreeSans9pt7b is 45px
 const TextStyle WEEK_TEXT = {&fonts::Font2, TEXT_GRAY};
 const lgfx::IFont *const AVERAGE_FONT = &fonts::Font2;
-const TextStyle CHANGE_TEXT = {&fonts::FreeSans18pt7b, TEXT_WHITE};
+const lgfx::IFont *const CHANGE_FONT = &fonts::FreeSans18pt7b;
 
 // What a column covers, from the top of its text to the bottom of its lines
 struct Span {
@@ -110,15 +110,15 @@ static Span drawColumn(float x, int week, const Weight &weight, const Scale &sca
 static void drawChange(const Weight &weight, const Span spans[]) {
   if (weight.weeklyGrams[0] == WEIGHT_MISSING || gramsBefore(weight, 0) == WEIGHT_MISSING) return;
   int tenths = (weight.weeklyGrams[0] + 50) / 100 - (gramsBefore(weight, 0) + 50) / 100;
-  String text = (tenths > 0 ? "+" : tenths < 0 ? "-" : "") + kilograms(abs(tenths) * 100);
-  frame.setFont(CHANGE_TEXT.font);
+  String text = (tenths > 0 ? "+" : tenths < 0 ? "-" : "") + kilograms(abs(tenths) * 100) + " kg";
+  frame.setFont(CHANGE_FONT);
   int width = frame.textWidth(text);
   int top = PADDING, bottom = frame.height() - AXIS_HEIGHT - VALUE_GAP;
   for (bool isRight : {true, false}) {
     int left = isRight ? frame.width() - PADDING - width : PADDING;
     for (int baseline : {top + CHANGE_TEXT_HEIGHT, bottom}) {
       if (!hasRoom(left, left + width, baseline - CHANGE_TEXT_HEIGHT, baseline, spans)) continue;
-      drawText(text, left, baseline, CHANGE_TEXT, baseline_left);
+      drawText(text, left, baseline, {CHANGE_FONT, changeColor(weight, 0)}, baseline_left);
       return;
     }
   }
