@@ -24,7 +24,7 @@ const int RANGE_COLOR_COUNT = sizeof(RANGE_COLORS) / sizeof(RANGE_COLORS[0]);
 #define ARROW_HEIGHT 5
 #define ARROW_ROOM 15           // the shortest bar that gets one
 #define ARROW_RADIUS 0.75f
-#define ARROW_LIGHTEN 0.35f     // how much lighter than the bar
+#define ARROW_SHADE 0.35f       // how much darker than the bar
 #define RANGE_RADIUS 0.75f      // half the range line's width
 #define RANGE_FADE 0.5f         // how much of the range line's color is left
 #define CHANGE_RANGE_GRAMS 500  // a week's change that is all green or all red
@@ -140,11 +140,11 @@ static float columnX(int week) {
   return PADDING + column * (columnWidth() + COLUMN_GAP) + columnWidth() / 2;
 }
 
-// A chevron in the middle of the bar, in a lighter shade of it
+// A chevron in the middle of the bar, in a darker shade of it
 static void drawArrow(float x, float top, float bottom, bool isUp, uint32_t color) {
   float middle = (top + bottom) / 2, tip = middle + (isUp ? -ARROW_HEIGHT : ARROW_HEIGHT) / 2.0f;
   float ends = middle + (isUp ? ARROW_HEIGHT : -ARROW_HEIGHT) / 2.0f;
-  uint32_t shade = blend(color, TEXT_WHITE, ARROW_LIGHTEN);
+  uint32_t shade = blend(color, BACKGROUND, ARROW_SHADE);
   frame.drawWideLine(x - ARROW_WIDTH / 2.0f, ends, x, tip, ARROW_RADIUS, shade);
   frame.drawWideLine(x, tip, x + ARROW_WIDTH / 2.0f, ends, ARROW_RADIUS, shade);
 }
