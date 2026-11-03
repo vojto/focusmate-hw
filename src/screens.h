@@ -15,5 +15,6 @@ void showCountdown(int32_t seconds, BlockPosition block);
 // A pie that starts full and empties clockwise a minute at a time, inside a
 // ring with a tick per minute. The time left is in the bottom left corner, like
 // 0:15, and a session in a block of several gets its position in the bottom
-// right, like 3⁄4. Vojto's age is in the top left, like 35.24, as a memento mori.
+// right, like 3⁄4. Vojto's age is in the top left, like 35.24, and a skull
+// in the top right, as a memento mori.
 void showPie(int usedMinutes, int totalMinutes, BlockPosition block, time_t now);

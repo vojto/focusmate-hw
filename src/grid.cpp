@@ -53,17 +53,10 @@ void drawGridLines(int rowCount) {
 
 static int cellHeight() { return frame.height() / rows; }
 
-// The icon's coverage blended onto the black background in its color
 static void drawIcon(int index, const GridCell &cell) {
   int left = index % COLUMNS * CELL_WIDTH + CELL_PADDING;
   int top = index / COLUMNS * cellHeight() + (cellHeight() - ICON_SIZE) / 2;
-  uint8_t red = cell.iconColor >> 16, green = cell.iconColor >> 8, blue = cell.iconColor;
-  for (int y = 0; y < ICON_SIZE; y++) {
-    for (int x = 0; x < ICON_SIZE; x++) {
-      int alpha = cell.icon[y * ICON_SIZE + x];
-      if (alpha) frame.drawPixel(left + x, top + y, frame.color888(red * alpha / 255, green * alpha / 255, blue * alpha / 255));
-    }
-  }
+  drawIcon(cell.icon, left, top, cell.iconColor);
 }
 
 // The value at textLeft, the unit right after it and the label at the cell's

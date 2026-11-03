@@ -46,5 +46,8 @@ String keyOf(const T &value) {
 // Returns the text's width
 int drawText(const String &text, int x, int y, const TextStyle &style, lgfx::textdatum_t datum);
 
+// An icon from icons.h, its coverage blended onto the black background in its color
+void drawIcon(const uint8_t *icon, int left, int top, uint32_t color);
+
 // Vojto's age in years: "35.21"
 String ageText(time_t now);

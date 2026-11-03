@@ -1,5 +1,6 @@
 #include "screens.h"
 #include "display.h"
+#include "icons.h"
 
 /*
  * Draws the countdown and pie screens into the frame (display.h). The pie is
@@ -19,13 +20,14 @@ const uint32_t PIE_RED = 0xE24B4A, PIE_USED = 0x2C2C2A, COUNTDOWN_GREEN = 0x5DCA
 #define PIE_SCALE 2             // how many times too big the pie is drawn; a redraw takes ~0.6s at 2, ~1s at 3
 #define PIE_CANVAS (240 * PIE_SCALE)
 
-// The corners of the pie and countdown screens: Vojto's age top left (pie
-// only), the time left or a caption bottom left, the session's position in its
+// The corners of the pie and countdown screens: Vojto's age top left and a
+// skull top right (pie only), the time left or a caption bottom left, the session's position in its
 // block bottom right. All are drawn after the pie, whose square canvas reaches
 // into the corners.
 #define CORNER_LEFT 8
 #define CORNER_RIGHT 312
 #define CORNER_TOP_BASELINE 26
+#define SKULL_TOP 4             // centers the skull on the age's digits
 #define CORNER_BASELINE 231
 #define SLASH_WIDTH 9           // a fraction slash leans further than a normal one
 #define SLASH_RISE 19           // how far above the baseline it reaches
@@ -76,6 +78,7 @@ void showPie(int usedMinutes, int totalMinutes, BlockPosition block, time_t now)
   // Shrinking averages the canvas's pixels, which is what smooths the edges
   pieCanvas.pushRotateZoomWithAA(&frame, CENTER_X, CENTER_Y, 0, 1.0f / PIE_SCALE, 1.0f / PIE_SCALE);
   drawText(age, CORNER_LEFT, CORNER_TOP_BASELINE, CORNER_TEXT, baseline_left);
+  drawIcon(ICON_SKULL, CORNER_RIGHT - ICON_SIZE, SKULL_TOP, TEXT_GRAY);
   drawTimeLeft(totalMinutes - usedMinutes);
   drawBlockPosition(block);
   pushFrame();
