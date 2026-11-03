@@ -1,6 +1,7 @@
 #include "screens.h"
 #include "display.h"
 #include "icons.h"
+#include <math.h>
 
 /*
  * Draws the countdown and pie screens into the frame (display.h). The pie is
@@ -8,7 +9,13 @@
  * which smooths its edges.
  */
 
-const uint32_t PIE_RED = 0xE24B4A, PIE_USED = 0x2C2C2A, COUNTDOWN_GREEN = 0x5DCAA5;
+const uint32_t PIE_USED = 0x2C2C2A, COUNTDOWN_GREEN = 0x5DCAA5;
+
+// The pie's color runs through these OKLCH colors (lightness, chroma, hue),
+// evenly spaced over the session: green, yellow, orange, then red (0xE24B4A)
+// in the last minute. tools/sketch/session-colors.html shows them.
+const float PIE_COLORS[][3] = {{0.72f, 0.17f, 150}, {0.84f, 0.17f, 95}, {0.73f, 0.17f, 55}, {0.6234f, 0.1877f, 24.72f}};
+const int PIE_COLOR_COUNT = sizeof(PIE_COLORS) / sizeof(PIE_COLORS[0]);
 
 // The pie and its ticks, in screen pixels and degrees
 #define PIE_RADIUS 106
@@ -41,9 +48,12 @@ static String minutesAndSeconds(int32_t seconds);
 static String blockKey(BlockPosition block);
 static void drawTimeLeft(int minutes);
 static void drawBlockPosition(BlockPosition block);
+static uint32_t pieColor(int usedMinutes, int totalMinutes);
+static uint32_t oklchToRgb(float lightness, float chroma, float hue);
+static bool linearToRgb(float l, float m, float s, uint32_t& rgb);
 static void clearPieCanvas();
-static void drawSlices(float usedDegrees);
-static void drawTick(float angle, bool isActive, bool isBold);
+static void drawSlices(float usedDegrees, uint32_t color);
+static void drawTick(float angle, bool isBold, uint32_t color);
 static void fillArc(int inner, int outer, float from, float to, uint32_t color);
 
 static M5Canvas pieCanvas;
@@ -64,16 +74,18 @@ void showCountdown(int32_t seconds, BlockPosition block) {
 }
 
 // The used-up part grows clockwise from 12 o'clock, like on a Time Timer. Its
-// edge always points at the tick of the minute that is running, which is red.
+// edge always points at the tick of the minute that is running, which has the
+// pie's color. The color goes from green to red over the session.
 void showPie(int usedMinutes, int totalMinutes, BlockPosition block, time_t now) {
   String age = ageText(now);
   if (!isNewFrame("pie " + String(usedMinutes) + "/" + String(totalMinutes) + " " + blockKey(block) + " " + age)) return;
   float minuteDegrees = 360.0f / totalMinutes;
+  uint32_t color = pieColor(usedMinutes, totalMinutes);
   clearPieCanvas();
-  drawSlices(usedMinutes * minuteDegrees);
+  drawSlices(usedMinutes * minuteDegrees, color);
   for (int minute = 0; minute < totalMinutes; minute++) {
     bool isActive = minute == usedMinutes;
-    drawTick(minute * minuteDegrees, isActive, isActive || minute % BOLD_TICK_MINUTES == 0);
+    drawTick(minute * minuteDegrees, isActive || minute % BOLD_TICK_MINUTES == 0, isActive ? color : TEXT_GRAY);
   }
   // Shrinking averages the canvas's pixels, which is what smooths the edges
   pieCanvas.pushRotateZoomWithAA(&frame, CENTER_X, CENTER_Y, 0, 1.0f / PIE_SCALE, 1.0f / PIE_SCALE);
@@ -113,6 +125,48 @@ static void drawBlockPosition(BlockPosition block) {
   drawText(String(block.number), slashLeft - SLASH_GAP, CORNER_BASELINE, CORNER_TEXT, baseline_right);
 }
 
+// MARK: Pie color
+
+// The first minute gets the first color, the last minute the last
+static uint32_t pieColor(int usedMinutes, int totalMinutes) {
+  float at = totalMinutes > 1 ? (float)usedMinutes / (totalMinutes - 1) * (PIE_COLOR_COUNT - 1) : 0;
+  int from = min((int)at, PIE_COLOR_COUNT - 2);
+  float t = at - from;
+  float lch[3];
+  for (int i = 0; i < 3; i++) lch[i] = PIE_COLORS[from][i] + (PIE_COLORS[from + 1][i] - PIE_COLORS[from][i]) * t;
+  return oklchToRgb(lch[0], lch[1], lch[2]);
+}
+
+// Lowers chroma until the color fits in sRGB, keeping lightness and hue
+static uint32_t oklchToRgb(float lightness, float chroma, float hue) {
+  uint32_t rgb = 0;
+  for (; chroma >= 0; chroma -= 0.002f) {
+    float a = chroma * cosf(hue * PI / 180), b = chroma * sinf(hue * PI / 180);
+    float l = powf(lightness + 0.3963377774f * a + 0.2158037573f * b, 3);
+    float m = powf(lightness - 0.1055613458f * a - 0.0638541728f * b, 3);
+    float s = powf(lightness - 0.0894841775f * a - 1.2914855480f * b, 3);
+    if (linearToRgb(l, m, s, rgb)) break;
+  }
+  return rgb;
+}
+
+// OKLab's LMS to 0xRRGGBB; false when it is outside sRGB
+static bool linearToRgb(float l, float m, float s, uint32_t& rgb) {
+  float linear[3] = {
+      4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s,
+      -1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s,
+      -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s,
+  };
+  rgb = 0;
+  for (float v : linear) {
+    if (v < -1e-4f || v > 1 + 1e-4f) return false;
+    v = constrain(v, 0.0f, 1.0f);
+    float srgb = v <= 0.0031308f ? 12.92f * v : 1.055f * powf(v, 1 / 2.4f) - 0.055f;
+    rgb = rgb << 8 | (uint32_t)lroundf(255 * srgb);
+  }
+  return true;
+}
+
 // MARK: Pie canvas
 
 // The canvas is too big for the normal heap, so it lives in PSRAM
@@ -124,16 +178,16 @@ static void clearPieCanvas() {
   pieCanvas.fillScreen(BACKGROUND);
 }
 
-// The used part from 12 o'clock to usedDegrees, the rest red
-static void drawSlices(float usedDegrees) {
-  fillArc(0, PIE_RADIUS, usedDegrees, 360, PIE_RED);
+// The used part from 12 o'clock to usedDegrees, the rest in the session's color
+static void drawSlices(float usedDegrees, uint32_t color) {
+  fillArc(0, PIE_RADIUS, usedDegrees, 360, color);
   // Equal angles would fill the whole circle
   if (usedDegrees > 0) fillArc(0, PIE_RADIUS, 0, usedDegrees, PIE_USED);
 }
 
-static void drawTick(float angle, bool isActive, bool isBold) {
+static void drawTick(float angle, bool isBold, uint32_t color) {
   float halfWidth = (isBold ? BOLD_TICK_DEGREES : TICK_DEGREES) / 2;
-  fillArc(TICK_INNER, TICK_OUTER, angle - halfWidth, angle + halfWidth, isActive ? PIE_RED : TEXT_GRAY);
+  fillArc(TICK_INNER, TICK_OUTER, angle - halfWidth, angle + halfWidth, color);
 }
 
 // Fills part of a ring on the pie canvas. Radii are in screen pixels, angles in
