@@ -1,4 +1,8 @@
 #include "display.h"
+#include "network.h"
+
+#define BIRTH_TIME 681343200     // 5 Aug 1991, midnight in Bratislava
+#define SECONDS_PER_YEAR (365.2425 * 86400)
 
 M5Canvas frame(&M5.Display);
 static String shownKey;
@@ -26,4 +30,9 @@ int drawText(const String &text, int x, int y, const TextStyle &style, lgfx::tex
   frame.setTextColor(style.color);
   frame.setTextDatum(datum);
   return frame.drawString(text, x, y);
+}
+
+String ageText(time_t now) {
+  if (!isTimeSynced()) return "--";
+  return String((now - BIRTH_TIME) / SECONDS_PER_YEAR, 2);
 }

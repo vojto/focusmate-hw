@@ -63,7 +63,7 @@ void loop() {
 
   bool isSessionNear = session.isRunning(now) || session.isStartingWithin(COUNTDOWN_S, now);
   if (isShowingSlides(isSessionNear)) showSlides(now, fetchProblem());
-  else if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session));
+  else if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session), now);
   else showCountdown(session.start - now, blockPosition(session));
 
   playChimes(session, now);

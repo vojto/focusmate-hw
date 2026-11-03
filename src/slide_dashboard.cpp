@@ -12,11 +12,7 @@
 
 const uint32_t STEPS_GREEN = 0x5DCAA5, SLEEP_BLUE = 0x85B7EB, HRV_PINK = 0xED93B1, RHR_RED = 0xE24B4A;
 
-#define BIRTH_TIME 681343200     // 5 Aug 1991, midnight in Bratislava
-#define SECONDS_PER_YEAR (365.2425 * 86400)
-
 static String dateText(time_t now);
-static String ageText(time_t now);
 static String stepsText(time_t now);
 static String sleepText(time_t now);
 static String hrvText(time_t now);
@@ -45,12 +41,6 @@ static String dateText(time_t now) {
   localtime_r(&now, &local);
   strftime(text, sizeof(text), "%d %b", &local);
   return text[0] == '0' ? text + 1 : text;
-}
-
-// Vojto's age in years: "35.21"
-static String ageText(time_t now) {
-  if (!isTimeSynced()) return "--";
-  return String((now - BIRTH_TIME) / SECONDS_PER_YEAR, 2);
 }
 
 // "950", "8.4k"

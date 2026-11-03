@@ -19,11 +19,13 @@ const uint32_t PIE_RED = 0xE24B4A, PIE_USED = 0x2C2C2A, COUNTDOWN_GREEN = 0x5DCA
 #define PIE_SCALE 2             // how many times too big the pie is drawn; a redraw takes ~0.6s at 2, ~1s at 3
 #define PIE_CANVAS (240 * PIE_SCALE)
 
-// The bottom corners of the pie and countdown screens: the time left or a
-// caption on the left, the session's position in its block on the right. Both
-// are drawn after the pie, whose square canvas reaches into the corners.
+// The corners of the pie and countdown screens: Vojto's age top left (pie
+// only), the time left or a caption bottom left, the session's position in its
+// block bottom right. All are drawn after the pie, whose square canvas reaches
+// into the corners.
 #define CORNER_LEFT 8
 #define CORNER_RIGHT 312
+#define CORNER_TOP_BASELINE 26
 #define CORNER_BASELINE 231
 #define SLASH_WIDTH 9           // a fraction slash leans further than a normal one
 #define SLASH_RISE 19           // how far above the baseline it reaches
@@ -61,8 +63,9 @@ void showCountdown(int32_t seconds, BlockPosition block) {
 
 // The used-up part grows clockwise from 12 o'clock, like on a Time Timer. Its
 // edge always points at the tick of the minute that is running, which is red.
-void showPie(int usedMinutes, int totalMinutes, BlockPosition block) {
-  if (!isNewFrame("pie " + String(usedMinutes) + "/" + String(totalMinutes) + " " + blockKey(block))) return;
+void showPie(int usedMinutes, int totalMinutes, BlockPosition block, time_t now) {
+  String age = ageText(now);
+  if (!isNewFrame("pie " + String(usedMinutes) + "/" + String(totalMinutes) + " " + blockKey(block) + " " + age)) return;
   float minuteDegrees = 360.0f / totalMinutes;
   clearPieCanvas();
   drawSlices(usedMinutes * minuteDegrees);
@@ -72,6 +75,7 @@ void showPie(int usedMinutes, int totalMinutes, BlockPosition block) {
   }
   // Shrinking averages the canvas's pixels, which is what smooths the edges
   pieCanvas.pushRotateZoomWithAA(&frame, CENTER_X, CENTER_Y, 0, 1.0f / PIE_SCALE, 1.0f / PIE_SCALE);
+  drawText(age, CORNER_LEFT, CORNER_TOP_BASELINE, CORNER_TEXT, baseline_left);
   drawTimeLeft(totalMinutes - usedMinutes);
   drawBlockPosition(block);
   pushFrame();

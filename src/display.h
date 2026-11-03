@@ -45,3 +45,6 @@ String keyOf(const T &value) {
 
 // Returns the text's width
 int drawText(const String &text, int x, int y, const TextStyle &style, lgfx::textdatum_t datum);
+
+// Vojto's age in years: "35.21"
+String ageText(time_t now);
