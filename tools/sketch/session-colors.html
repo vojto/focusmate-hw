@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session Colors Sketch</title>
+<!--
+  Looks for a pie whose color moves continuously through the session instead of
+  staying red (PIE_RED in src/screens.cpp). Each look is a few OKLCH colors with
+  straight lines between them, so lightness, chroma and hue change evenly; the pie is
+  redrawn once a minute, so on the device the color moves one step a minute.
+  The screens use the firmware's geometry: pie radius 106, ticks 111-117.
+-->
+<style>
+  :root {
+    --bg: #f4f3ef; --ink: #1d1d1b; --muted: #6b6a64; --card: #fff; --line: #dcdad2; --accent: #c0392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; --card: #222220; --line: #34342f; --accent: #ff7a6b; }
+  }
+  :root[data-theme="dark"] { --bg: #161615; --ink: #ecebe6; --muted: #9a998f; --card: #222220; --line: #34342f; --accent: #ff7a6b; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, system-ui, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 28px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 16px; margin: 0; }
+  .note { color: var(--muted); margin: 4px 0 0; max-width: 760px; }
+  .controls { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+
+  .look { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; }
+  .look header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+  .pick { color: var(--accent); font-size: 12px; font-weight: 600; margin-left: 6px; }
+  .stops { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .strip { height: 22px; border-radius: 6px; position: relative; }
+  .strip-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: -6px; }
+
+  .shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 12px; }
+  figure { margin: 0; display: grid; gap: 4px; }
+  canvas { width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; background: #000; box-shadow: 0 0 0 5px #2a2a28; display: block; margin: 5px 0; }
+  figcaption { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 6px; }
+  figcaption b { color: var(--ink); font-weight: 600; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <h1>Session colors</h1>
+    <p class="note">The pie's remaining part (and the running minute's tick) changes color as the session goes on, interpolated in OKLCH. Each card is one look, shown at several points of a session. The last minute is always today's red (<code>#E24B4A</code>, oklch 0.63 0.19 25), so the end of a session looks the way it does now.</p>
+  </div>
+  <div class="controls">
+    <label>Session <select id="length">
+      <option value="25">25 min</option>
+      <option value="50" selected>50 min</option>
+      <option value="75">75 min</option>
+    </select></label>
+  </div>
+  <div id="looks" style="display: grid; gap: 20px;"></div>
+</main>
+
+<script>
+// Each look runs in a straight line from `from` to `to` in OKLCH: [lightness, chroma, hue].
+// Hues are unwrapped so the line goes the chosen way round (385 is 25, past magenta).
+const END_RED = [0.6234, 0.1877, 24.72];  // #E24B4A
+const LOOKS = [
+  { name: 'Green to red', isPick: true, stops: [[0.72, 0.17, 150], [0.84, 0.17, 95], [0.73, 0.17, 55], END_RED],
+    about: 'Calm at the start, urgent at the end; through a bright yellow at a third and orange at two thirds, like a traffic light that takes its time. Lightness rises for the yellow, which would turn mustard otherwise.' },
+  { name: 'Green to red, flat', stops: [[0.72, 0.16, 152], END_RED],
+    about: 'The same ends in one straight line at even lightness; the middle goes olive and mustard.' },
+  { name: 'Blue to red through violet', stops: [[0.64, 0.14, 255], [END_RED[0], END_RED[1], END_RED[2] + 360]],
+    about: 'Cool to warm the other way round, through violet and magenta; never yellow, so it stays quieter in the middle.' },
+  { name: 'Yellow to red', stops: [[0.84, 0.16, 92], END_RED],
+    about: 'Warm the whole time, from sunny yellow through amber; the change is subtler and the pie is bright at the start.' },
+  { name: 'Dim to bright red', stops: [[0.42, 0.07, 28], END_RED],
+    about: 'Same hue all session; it starts as a dull brick and glows to full red, so only brightness says how far along you are.' },
+];
+
+const BACKGROUND = '#000', TEXT_GRAY = '#B4B2A9', PIE_USED = '#2C2C2A';
+const PIE_RADIUS = 106, TICK_INNER = 111, TICK_OUTER = 117;
+const TICK_DEGREES = 0.6, BOLD_TICK_DEGREES = 1.6, BOLD_TICK_MINUTES = 5;
+const SKULL = 'M12 2.5C7 2.5 3.5 6 3.5 10.5c0 2.8 1.3 4.6 3 5.6V19a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-2.9c1.7-1 3-2.8 3-5.6C20.5 6 17 2.5 12 2.5zM8.5 8.6a2.4 2.4 0 1 0 0 4.8a2.4 2.4 0 1 0 0-4.8zM15.5 8.6a2.4 2.4 0 1 0 0 4.8a2.4 2.4 0 1 0 0-4.8zM12 13.8l-1.3 2.4h2.6zM9.6 17.6h0.9v2.9h-0.9zM13.5 17.6h0.9v2.9h-0.9z';
+const SHOTS = 6;
+
+// MARK: OKLCH
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+// Where t (0-1) falls on a line through evenly spaced stops
+function along(stops, t) {
+  const at = t * (stops.length - 1), i = Math.min(Math.floor(at), stops.length - 2);
+  return stops[i].map((v, k) => lerp(v, stops[i + 1][k], at - i));
+}
+
+// OKLCH to sRGB 0-255, or null when it is outside sRGB
+function oklchToRgb([L, C, h]) {
+  const a = C * Math.cos(h * Math.PI / 180), b = C * Math.sin(h * Math.PI / 180);
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+  const linear = [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s,
+  ];
+  if (linear.some(v => v < -1e-4 || v > 1 + 1e-4)) return null;
+  return linear.map(v => {
+    v = Math.min(1, Math.max(0, v));
+    return Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055));
+  });
+}
+
+// Lowers chroma until the color fits in sRGB, keeping lightness and hue
+function toHex(lch) {
+  let [L, C, h] = lch, rgb;
+  while (!(rgb = oklchToRgb([L, C, h]))) C -= 0.002;
+  return '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+// The minute's color: the first minute is the first stop, the last minute the last
+function minuteColor(look, used, total) { return toHex(along(look.stops, used / (total - 1))); }
+
+// MARK: Screen
+
+function drawScreen(canvas, used, total, color) {
+  const scale = 3;
+  canvas.width = 320 * scale; canvas.height = 240 * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = BACKGROUND; ctx.fillRect(0, 0, 320, 240);
+  const minuteDegrees = 360 / total, usedDegrees = used * minuteDegrees;
+  if (usedDegrees > 0) fillArc(ctx, 0, PIE_RADIUS, 0, usedDegrees, PIE_USED);
+  fillArc(ctx, 0, PIE_RADIUS, usedDegrees, 360, color);
+  for (let minute = 0; minute < total; minute++) {
+    const isActive = minute === used, isBold = isActive || minute % BOLD_TICK_MINUTES === 0;
+    const half = (isBold ? BOLD_TICK_DEGREES : TICK_DEGREES) / 2;
+    fillArc(ctx, TICK_INNER, TICK_OUTER, minute * minuteDegrees - half, minute * minuteDegrees + half, isActive ? color : TEXT_GRAY);
+  }
+  ctx.fillStyle = TEXT_GRAY;
+  ctx.font = '17px Helvetica, Arial, sans-serif';
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.fillText('35.25', 8, 26);
+  const left = total - used;
+  ctx.fillText(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`, 8, 231);
+  ctx.textAlign = 'right';
+  ctx.fillText('2⁄2', 312, 231);
+  ctx.save();
+  ctx.translate(312 - 26, 4); ctx.scale(26 / 24, 26 / 24);
+  ctx.fill(new Path2D(SKULL), 'evenodd');
+  ctx.restore();
+}
+
+// Degrees clockwise from 12 o'clock, like fillArc in screens.cpp
+function fillArc(ctx, inner, outer, from, to, color) {
+  const start = (from - 90) * Math.PI / 180, end = (to - 90) * Math.PI / 180;
+  ctx.beginPath();
+  ctx.arc(160, 120, outer, start, end);
+  if (inner > 0) ctx.arc(160, 120, inner, end, start, true); else ctx.lineTo(160, 120);
+  ctx.closePath();
+  ctx.fillStyle = color; ctx.fill();
+}
+
+// MARK: Page
+
+function render() {
+  const total = +document.getElementById('length').value;
+  // Evenly spread minutes, always including the first and the last
+  const minutes = [...Array(SHOTS)].map((_, i) => Math.round(i * (total - 1) / (SHOTS - 1)));
+  const looks = document.getElementById('looks');
+  looks.innerHTML = '';
+  for (const look of LOOKS) {
+    const section = document.createElement('section');
+    section.className = 'look';
+    const steps = [...Array(total)].map((_, used) => minuteColor(look, used, total));
+    const fmt = ([L, C, h]) => `oklch(${L.toFixed(2)} ${C.toFixed(2)} ${(h % 360).toFixed(0)})`;
+    section.innerHTML = `
+      <header>
+        <div><h2>${look.name}${look.isPick ? '<span class="pick">my pick</span>' : ''}</h2>
+        <p class="note">${look.about}</p></div>
+        <div class="stops">${look.stops.map(fmt).join(' → ')}</div>
+      </header>
+      <div class="strip" style="background: linear-gradient(to right, ${steps.map((c, i) => `${c} ${100 * i / total}%, ${c} ${100 * (i + 1) / total}%`).join(', ')})"></div>
+      <div class="strip-labels"><span>first minute</span><span>one step per minute, ${total} steps</span><span>last minute</span></div>
+      <div class="shots"></div>`;
+    const shots = section.querySelector('.shots');
+    for (const used of minutes) {
+      const color = steps[used];
+      const figure = document.createElement('figure');
+      const canvas = document.createElement('canvas');
+      drawScreen(canvas, used, total, color);
+      figure.append(canvas);
+      figure.insertAdjacentHTML('beforeend', `<figcaption><b>${used} min in</b><span><span class="swatch" style="background:${color}"></span>${color}</span></figcaption>`);
+      shots.append(figure);
+    }
+    looks.append(section);
+  }
+}
+
+document.getElementById('length').addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
