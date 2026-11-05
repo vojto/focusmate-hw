@@ -3,11 +3,12 @@
 
 /*
  * A column per week, this week on the right: a faded line from the week's
- * lightest weigh-in to its heaviest, a bar from the week before's average to
- * this week's (at least CHANGE_MIN_HEIGHT tall), and the average above. Colored by the change from the week before, green for
+ * lightest weigh-in to its heaviest, a faded bar from the week before's average
+ * to this week's (at least CHANGE_MIN_HEIGHT tall) with a line in full color at
+ * this week's end, and the average above. Colored by the change from the week before, green for
  * a loss of CHANGE_RANGE_GRAMS or more to red for a gain of as much. This
  * week's change ("-0.3") is large in the first corner that has room. See
- * tools/sketch/weight-columns.html.
+ * tools/sketch/weight-columns.html and weight-edge.html.
  */
 
 // The sleep colors from green to red
@@ -24,9 +25,10 @@ const int RANGE_COLOR_COUNT = sizeof(RANGE_COLORS) / sizeof(RANGE_COLORS[0]);
 #define ARROW_HEIGHT 5
 #define ARROW_ROOM 15           // the shortest bar that gets one
 #define ARROW_RADIUS 0.75f
-#define ARROW_SHADE 0.35f       // how much darker than the bar
 #define RANGE_RADIUS 0.75f      // half the range line's width
 #define RANGE_FADE 0.5f         // how much of the range line's color is left
+#define BAR_FADE 0.4f           // how much of the change bar's color is left
+#define EDGE_HEIGHT 2           // the line at this week's end of the bar
 #define CHANGE_RANGE_GRAMS 500  // a week's change that is all green or all red
 #define SCALE_STEP_GRAMS 500    // the scale's ends are rounded out to this
 #define TEXT_HEIGHT 16          // Font2's
@@ -97,7 +99,9 @@ static Span drawColumn(float x, int week, const Weight &weight, const Scale &sca
   float growth = max(0.0f, CHANGE_MIN_HEIGHT - (barBottom - barTop)) / 2;
   int left = lroundf(x - columnWidth() / 2 + CHANGE_INSET), right = lroundf(x + columnWidth() / 2 - CHANGE_INSET);
   int y = lroundf(barTop - growth);
-  frame.fillRect(left, y, right - left, lroundf(barBottom + growth) - y, color);
+  int height = lroundf(barBottom + growth) - y;
+  frame.fillRect(left, y, right - left, height, blend(BACKGROUND, color, BAR_FADE));
+  frame.fillRect(left, grams >= before ? y : y + height - EDGE_HEIGHT, right - left, EDGE_HEIGHT, color);
   if (grams != before && barBottom - barTop >= ARROW_ROOM) drawArrow(x, barTop, barBottom, grams > before, color);
   int textBottom = min((int)lroundf(top), y) - VALUE_GAP;
   drawText(kilograms(grams), lroundf(x), textBottom, {AVERAGE_FONT, color}, bottom_center);
@@ -140,13 +144,12 @@ static float columnX(int week) {
   return PADDING + column * (columnWidth() + COLUMN_GAP) + columnWidth() / 2;
 }
 
-// A chevron in the middle of the bar, in a darker shade of it
+// A chevron in the middle of the bar
 static void drawArrow(float x, float top, float bottom, bool isUp, uint32_t color) {
   float middle = (top + bottom) / 2, tip = middle + (isUp ? -ARROW_HEIGHT : ARROW_HEIGHT) / 2.0f;
   float ends = middle + (isUp ? ARROW_HEIGHT : -ARROW_HEIGHT) / 2.0f;
-  uint32_t shade = blend(color, BACKGROUND, ARROW_SHADE);
-  frame.drawWideLine(x - ARROW_WIDTH / 2.0f, ends, x, tip, ARROW_RADIUS, shade);
-  frame.drawWideLine(x, tip, x + ARROW_WIDTH / 2.0f, ends, ARROW_RADIUS, shade);
+  frame.drawWideLine(x - ARROW_WIDTH / 2.0f, ends, x, tip, ARROW_RADIUS, color);
+  frame.drawWideLine(x, tip, x + ARROW_WIDTH / 2.0f, ends, ARROW_RADIUS, color);
 }
 
 // The gap between columns is set; their width is what is left of the screen
