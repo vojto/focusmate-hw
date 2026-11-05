@@ -21,6 +21,9 @@
 #define END_WARNING_S 60    // two descending notes this long before the end
 #define START_CHIME_S 10    // the start chime is skipped once the session is further in than this
 #define BRIGHTNESS 255      // 0-255, the most
+#define NIGHT_BRIGHTNESS 1  // the dimmest that still shows anything
+#define NIGHT_START_HOUR 23 // night runs from here to NIGHT_END_HOUR, local time
+#define NIGHT_END_HOUR 7
 #define VOLUME 128          // 0-255
 #define TICK_VOLUME 20      // 0-255, on top of VOLUME
 #define TICK_HZ 1500
@@ -32,6 +35,7 @@
 #define TAP_MS 15
 
 static bool isShowingSlides(bool isSessionNear);
+static void setBrightness(bool isSessionNear, time_t now);
 static void playChimes(const Session &session, time_t now);
 static void playTick(const Session &session, time_t now);
 static void playNotes(std::initializer_list<int> frequencies);
@@ -41,7 +45,6 @@ void setup() {
   // Otherwise the clock starts from whatever the Core2's clock chip holds
   cfg.internal_rtc = false;
   M5.begin(cfg);
-  M5.Display.setBrightness(BRIGHTNESS);
   M5.Speaker.setVolume(VOLUME);
   M5.Speaker.setChannelVolume(TICK_CHANNEL, TICK_VOLUME);
 
@@ -62,6 +65,7 @@ void loop() {
   playTick(session, now);
 
   bool isSessionNear = session.isRunning(now) || session.isStartingWithin(COUNTDOWN_S, now);
+  setBrightness(isSessionNear, now);
   if (isShowingSlides(isSessionNear)) showSlides(now, fetchProblem());
   else if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session), now);
   else showCountdown(session.start - now, blockPosition(session));
@@ -85,6 +89,18 @@ static bool isShowingSlides(bool isSessionNear) {
   }
   if (!isSessionNear || millis() - tappedAt >= PEEK_MS) isPeeking = false;
   return !isSessionNear || isPeeking;
+}
+
+// Dim at night, unless a session is near; full before the clock is set
+static void setBrightness(bool isSessionNear, time_t now) {
+  static int shown = -1;
+  struct tm local;
+  localtime_r(&now, &local);
+  bool isNight = isTimeSynced() && (local.tm_hour >= NIGHT_START_HOUR || local.tm_hour < NIGHT_END_HOUR);
+  int brightness = isNight && !isSessionNear ? NIGHT_BRIGHTNESS : BRIGHTNESS;
+  if (brightness == shown) return;
+  shown = brightness;
+  M5.Display.setBrightness(brightness);
 }
 
 // Start chimes and an end warning, each once per session
