@@ -11,8 +11,11 @@
  * tools/sketch/weight-columns.html and weight-edge.html.
  */
 
-// The sleep colors from green to red
-const uint32_t RANGE_COLORS[] = {0x59DE65, 0xADE74E, 0xFBD530, 0xFF9044, 0xFC5855};
+// The sleep colors from green to red in OKLCH (lightness, chroma, hue), blended
+// in OKLCH. See tools/sketch/weight-oklch.html.
+const float RANGE_COLORS[][3] = {
+    {0.8005f, 0.2000f, 145.0f}, {0.8594f, 0.1891f, 127.8f}, {0.8802f, 0.1699f, 94.9f}, {0.7602f, 0.1605f, 52.0f}, {0.6807f, 0.2004f, 25.1f},
+};
 const int RANGE_COLOR_COUNT = sizeof(RANGE_COLORS) / sizeof(RANGE_COLORS[0]);
 
 #define PADDING 12
@@ -26,8 +29,10 @@ const int RANGE_COLOR_COUNT = sizeof(RANGE_COLORS) / sizeof(RANGE_COLORS[0]);
 #define ARROW_ROOM 15           // the shortest bar that gets one
 #define ARROW_RADIUS 0.75f
 #define RANGE_RADIUS 0.75f      // half the range line's width
-#define RANGE_FADE 0.5f         // how much of the range line's color is left
-#define BAR_FADE 0.4f           // how much of the change bar's color is left
+#define RANGE_LIGHTNESS 0.5f    // the range line's OKLCH lightness, the same for every color
+#define BAR_LIGHTNESS 0.36f     // and the change bar's
+#define RANGE_FADE 0.5f         // how much of gray is left in the range line, when there is no change
+#define BAR_FADE 0.4f           // and in the bar
 #define EDGE_HEIGHT 2           // the line at this week's end of the bar
 #define CHANGE_RANGE_GRAMS 500  // a week's change that is all green or all red
 #define SCALE_STEP_GRAMS 500    // the scale's ends are rounded out to this
@@ -63,7 +68,7 @@ static bool hasRoom(int left, int right, int top, int bottom, const Span spans[]
 static float columnX(int week);
 static float columnWidth();
 static Scale scaleOf(const Weight &weight);
-static uint32_t changeColor(const Weight &weight, int week);
+static uint32_t changeColor(const Weight &weight, int week, float lightness = 0, float grayFade = 1);
 static int gramsBefore(const Weight &weight, int week);
 static void drawArrow(float x, float top, float bottom, bool isUp, uint32_t color);
 static String kilograms(int grams);
@@ -93,14 +98,14 @@ static Span drawColumn(float x, int week, const Weight &weight, const Scale &sca
 
   uint32_t color = changeColor(weight, week);
   float top = scale.y(weight.heaviestGrams[week]);
-  frame.drawWideLine(x, top, x, scale.y(weight.lightestGrams[week]), RANGE_RADIUS, blend(BACKGROUND, color, RANGE_FADE));
+  frame.drawWideLine(x, top, x, scale.y(weight.lightestGrams[week]), RANGE_RADIUS, changeColor(weight, week, RANGE_LIGHTNESS, RANGE_FADE));
   int before = gramsBefore(weight, week) == WEIGHT_MISSING ? grams : gramsBefore(weight, week);
   float barTop = min(scale.y(grams), scale.y(before)), barBottom = max(scale.y(grams), scale.y(before));
   float growth = max(0.0f, CHANGE_MIN_HEIGHT - (barBottom - barTop)) / 2;
   int left = lroundf(x - columnWidth() / 2 + CHANGE_INSET), right = lroundf(x + columnWidth() / 2 - CHANGE_INSET);
   int y = lroundf(barTop - growth);
   int height = lroundf(barBottom + growth) - y;
-  frame.fillRect(left, y, right - left, height, blend(BACKGROUND, color, BAR_FADE));
+  frame.fillRect(left, y, right - left, height, changeColor(weight, week, BAR_LIGHTNESS, BAR_FADE));
   frame.fillRect(left, grams >= before ? y : y + height - EDGE_HEIGHT, right - left, EDGE_HEIGHT, color);
   if (grams != before && barBottom - barTop >= ARROW_ROOM) drawArrow(x, barTop, barBottom, grams > before, color);
   int textBottom = min((int)lroundf(top), y) - VALUE_GAP;
@@ -172,14 +177,19 @@ static Scale scaleOf(const Weight &weight) {
   return {lightest / SCALE_STEP_GRAMS * SCALE_STEP_GRAMS, (heaviest / SCALE_STEP_GRAMS + 1) * SCALE_STEP_GRAMS};
 }
 
-// Gray when there is no week before to compare with
-static uint32_t changeColor(const Weight &weight, int week) {
+// At its own lightness, or at the given one with chroma lowered to match, so
+// every faded color is as bright as the others. Gray, faded by grayFade, when
+// there is no week before to compare with.
+static uint32_t changeColor(const Weight &weight, int week, float lightness, float grayFade) {
   int before = gramsBefore(weight, week);
-  if (before == WEIGHT_MISSING) return TEXT_GRAY;
+  if (before == WEIGHT_MISSING) return blend(BACKGROUND, TEXT_GRAY, grayFade);
   float amount = constrain((weight.weeklyGrams[week] - before) / (2.0f * CHANGE_RANGE_GRAMS) + 0.5f, 0.0f, 1.0f);
   float position = amount * (RANGE_COLOR_COUNT - 1);
   int from = min((int)position, RANGE_COLOR_COUNT - 2);
-  return blend(RANGE_COLORS[from], RANGE_COLORS[from + 1], position - from);
+  float lch[3];
+  for (int i = 0; i < 3; i++) lch[i] = RANGE_COLORS[from][i] + (RANGE_COLORS[from + 1][i] - RANGE_COLORS[from][i]) * (position - from);
+  if (lightness == 0) return oklchToRgb(lch[0], lch[1], lch[2]);
+  return oklchToRgb(lightness, lch[1] * lightness / lch[0], lch[2]);
 }
 
 // The average of the week before, or WEIGHT_MISSING

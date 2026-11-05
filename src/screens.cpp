@@ -49,8 +49,6 @@ static String blockKey(BlockPosition block);
 static void drawTimeLeft(int minutes);
 static void drawBlockPosition(BlockPosition block);
 static uint32_t pieColor(int usedMinutes, int totalMinutes);
-static uint32_t oklchToRgb(float lightness, float chroma, float hue);
-static bool linearToRgb(float l, float m, float s, uint32_t& rgb);
 static void clearPieCanvas();
 static void drawSlices(float usedDegrees, uint32_t color);
 static void drawTick(float angle, bool isBold, uint32_t color);
@@ -135,36 +133,6 @@ static uint32_t pieColor(int usedMinutes, int totalMinutes) {
   float lch[3];
   for (int i = 0; i < 3; i++) lch[i] = PIE_COLORS[from][i] + (PIE_COLORS[from + 1][i] - PIE_COLORS[from][i]) * t;
   return oklchToRgb(lch[0], lch[1], lch[2]);
-}
-
-// Lowers chroma until the color fits in sRGB, keeping lightness and hue
-static uint32_t oklchToRgb(float lightness, float chroma, float hue) {
-  uint32_t rgb = 0;
-  for (; chroma >= 0; chroma -= 0.002f) {
-    float a = chroma * cosf(hue * PI / 180), b = chroma * sinf(hue * PI / 180);
-    float l = powf(lightness + 0.3963377774f * a + 0.2158037573f * b, 3);
-    float m = powf(lightness - 0.1055613458f * a - 0.0638541728f * b, 3);
-    float s = powf(lightness - 0.0894841775f * a - 1.2914855480f * b, 3);
-    if (linearToRgb(l, m, s, rgb)) break;
-  }
-  return rgb;
-}
-
-// OKLab's LMS to 0xRRGGBB; false when it is outside sRGB
-static bool linearToRgb(float l, float m, float s, uint32_t& rgb) {
-  float linear[3] = {
-      4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s,
-      -1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s,
-      -0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s,
-  };
-  rgb = 0;
-  for (float v : linear) {
-    if (v < -1e-4f || v > 1 + 1e-4f) return false;
-    v = constrain(v, 0.0f, 1.0f);
-    float srgb = v <= 0.0031308f ? 12.92f * v : 1.055f * powf(v, 1 / 2.4f) - 0.055f;
-    rgb = rgb << 8 | (uint32_t)lroundf(255 * srgb);
-  }
-  return true;
 }
 
 // MARK: Pie canvas

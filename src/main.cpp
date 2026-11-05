@@ -20,7 +20,7 @@
 #define WARNING_S 60        // the first chime plays this long before the start
 #define END_WARNING_S 60    // two descending notes this long before the end
 #define START_CHIME_S 10    // the start chime is skipped once the session is further in than this
-#define BRIGHTNESS 100      // 0-255
+#define BRIGHTNESS 255      // 0-255, the most
 #define VOLUME 128          // 0-255
 #define TICK_VOLUME 20      // 0-255, on top of VOLUME
 #define TICK_HZ 1500

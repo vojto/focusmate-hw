@@ -49,5 +49,9 @@ int drawText(const String &text, int x, int y, const TextStyle &style, lgfx::tex
 // An icon from icons.h, its coverage blended onto the black background in its color
 void drawIcon(const uint8_t *icon, int left, int top, uint32_t color);
 
+// An OKLCH color (lightness 0-1, chroma, hue in degrees) as 0xRRGGBB, with
+// chroma lowered until it fits in sRGB
+uint32_t oklchToRgb(float lightness, float chroma, float hue);
+
 // Vojto's age in years: "35.21"
 String ageText(time_t now);
