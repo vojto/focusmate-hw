@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weight OKLCH Sketch</title>
+<!--
+  The weight range slide as picked in weight-edge.html (bar at 40%, a 2px line
+  at this week's average, chevron in full color), before and after: its
+  colors blended and faded in RGB as on the device, then in OKLCH. Under each
+  screen is the scale from a 0.5 kg loss to a 0.5 kg gain, with its faded bar
+  color under it. The numbers come from tools/out/weight-data.js, made by
+  python3 tools/weight_data.py and gitignored (the repo is public).
+-->
+<style>
+  :root { --bg: #f4f3ef; --muted: #6b6a64; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #161615; --muted: #9a998f; }
+  }
+  :root[data-theme="dark"] { --bg: #161615; --muted: #9a998f; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); font: 12px/1.4 -apple-system, system-ui, sans-serif;
+         display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px 16px; }
+  .variations { display: grid; grid-template-columns: repeat(2, auto); justify-content: center; gap: 32px; }
+  @media (max-width: 700px) { .variations { grid-template-columns: auto; } }
+  figure { margin: 0; display: grid; gap: 10px; justify-items: center; }
+  figcaption { color: var(--muted); font-size: 13px; max-width: 320px; text-align: center; }
+  .ramp { width: calc(54 * min(6px, calc((100vw - 32px) / 54))); height: 28px; display: block; shape-rendering: crispEdges; }
+
+  /* The Core2 is about 54x54mm; its 2" screen is 40.8x30.6mm (4:3), centered near the top */
+  .device { --mm: min(6px, calc((100vw - 32px) / 54)); width: calc(54 * var(--mm)); height: calc(54 * var(--mm));
+            border-radius: calc(4 * var(--mm)); background: linear-gradient(160deg, #3a3a3c, #232325);
+            box-shadow: 0 calc(2 * var(--mm)) calc(5 * var(--mm)) rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .12);
+            position: relative; }
+  .glass { position: absolute; left: calc(4 * var(--mm)); right: calc(4 * var(--mm)); top: calc(4 * var(--mm));
+           height: calc(40 * var(--mm)); background: #0b0b0c; border-radius: calc(1.5 * var(--mm));
+           box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+  .screen { position: absolute; left: calc(2.6 * var(--mm)); top: calc(2.4 * var(--mm));
+            width: calc(40.8 * var(--mm)); height: calc(30.6 * var(--mm)); background: #000; }
+  .screen svg { width: 100%; height: 100%; display: block; }
+  .buttons { position: absolute; left: calc(2.6 * var(--mm)); width: calc(40.8 * var(--mm)); bottom: calc(2.2 * var(--mm));
+             display: flex; justify-content: space-around; }
+  .buttons span { width: calc(1.6 * var(--mm)); height: calc(1.6 * var(--mm)); border-radius: 50%; background: #c8102e; opacity: .8; }
+  svg text { font-family: Helvetica, Arial, sans-serif; }
+  .note { color: var(--muted); margin: 0; }
+</style>
+</head>
+<body>
+<div class="variations"></div>
+<p class="note" id="source"></p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="../out/weight-data.js"></script>
+<script>
+// The firmware's constants (slide_weight_range.cpp)
+const WIDTH = 320, HEIGHT = 240, PADDING = 12, WEEKS = 8, COLUMN_GAP = 4, AXIS_HEIGHT = 22, VALUE_GAP = 5;
+const CHANGE_MIN_HEIGHT = 4, CHANGE_INSET = 3, ARROW_WIDTH = 10, ARROW_HEIGHT = 5, ARROW_ROOM = 15;
+const RANGE_FADE = 0.5, BAR_FADE = 0.4, EDGE_HEIGHT = 2, CHANGE_RANGE = 0.5, SCALE_STEP = 0.5, TEXT_HEIGHT = 16, TEXT_SIZE = 13;
+const CHANGE_SIZE = 34, CHANGE_TEXT_HEIGHT = 25;  // FreeSans18pt7b, whose digits are 25px
+const COLUMN_WIDTH = (WIDTH - 2 * PADDING - (WEEKS - 1) * COLUMN_GAP) / WEEKS;
+const GRAY = '#B4B2A9';
+const SLEEP_COLORS = ['#59DE65', '#ADE74E', '#FBD530', '#FF9044', '#FC5855'];
+
+// In OKLCH the faded parts keep the hue and get a set lightness, so every
+// faded bar is as bright as the others; chroma shrinks with it
+const BAR_LIGHTNESS = 0.36, RANGE_LIGHTNESS = 0.5;
+
+// Each palette turns a change (-1 for a loss of CHANGE_RANGE or more, 1 for a
+// gain of as much) into the full color and the bar's and range line's colors
+const SKETCHES = [
+  ['Before: the sleep colors, blended and faded in RGB', rgbPalette(SLEEP_COLORS)],
+  ['After: the same colors, blended and faded in OKLCH', oklchPalette(SLEEP_COLORS.map(rgbToOklch))],
+];
+
+// MARK: Palettes
+
+function rgbPalette(stops) {
+  const color = d3.scaleLinear().domain(stops.map((_, i) => -1 + 2 * i / (stops.length - 1))).range(stops).interpolate(d3.interpolateRgb);
+  const fade = (c, amount) => d3.interpolateRgb('#000', c)(amount);
+  return change => {
+    const full = color(change);
+    return { full, bar: fade(full, BAR_FADE), range: fade(full, RANGE_FADE) };
+  };
+}
+
+function oklchPalette(stops) {
+  return change => {
+    const position = (change + 1) / 2 * (stops.length - 1), from = Math.min(Math.floor(position), stops.length - 2), t = position - from;
+    const [l, c, h] = stops[from].map((v, i) => v + (stops[from + 1][i] - v) * t);
+    return {
+      full: oklchToRgb(l, c, h),
+      bar: oklchToRgb(BAR_LIGHTNESS, c * BAR_LIGHTNESS / l, h),
+      range: oklchToRgb(RANGE_LIGHTNESS, c * RANGE_LIGHTNESS / l, h),
+    };
+  };
+}
+
+const NO_CHANGE = { full: GRAY, bar: d3.interpolateRgb('#000', GRAY)(BAR_FADE), range: d3.interpolateRgb('#000', GRAY)(RANGE_FADE) };
+
+// MARK: OKLCH
+
+// Lowers chroma until the color fits in sRGB, keeping lightness and hue, like the device's oklchToRgb
+function oklchToRgb(lightness, chroma, hue) {
+  for (; chroma >= 0; chroma -= 0.002) {
+    const a = chroma * Math.cos(hue * Math.PI / 180), b = chroma * Math.sin(hue * Math.PI / 180);
+    const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+    const m = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+    const s = (lightness - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+    const linear = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+                    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+                    -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s];
+    if (linear.every(v => v >= -0.0001 && v <= 1.0001)) return d3.rgb(...linear.map(v => 255 * encode(Math.min(Math.max(v, 0), 1)))).formatHex();
+  }
+  return '#000000';
+}
+
+function rgbToOklch(hex) {
+  const { r, g, b } = d3.rgb(hex), [lr, lg, lb] = [r, g, b].map(v => decode(v / 255));
+  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+  const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+  const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+  const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+  return [L, Math.hypot(A, B), (Math.atan2(B, A) * 180 / Math.PI + 360) % 360];
+}
+
+function encode(v) { return v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055; }
+function decode(v) { return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }
+
+// MARK: Slide
+
+function drawSlide(svg, weeks, earlier, palette) {
+  const y = scaleOf(weeks, earlier), colorsOf = (kg, before) => before == null ? NO_CHANGE : palette(changeOf(kg, before));
+  const spans = weeks.map((week, i) => drawColumn(svg, columnX(i), week, i + 1 < weeks.length ? weeks[i + 1].kg : earlier, y, colorsOf));
+  drawChange(svg, weeks[0], weeks[1]?.kg, spans, colorsOf);
+}
+
+function changeOf(kg, before) { return Math.max(-1, Math.min(1, (kg - before) / CHANGE_RANGE)); }
+
+function drawColumn(svg, x, week, before, y, colorsOf) {
+  text(svg, x, HEIGHT - AXIS_HEIGHT / 2, week.label, TEXT_SIZE, GRAY, 'middle').attr('dy', '0.35em');
+  if (week.kg == null || !week.days.length) return null;
+
+  const colors = colorsOf(week.kg, before), top = y(d3.max(week.days)), bottom = y(d3.min(week.days));
+  svg.append('line').attr('x1', x).attr('x2', x).attr('y1', top).attr('y2', bottom)
+    .attr('stroke', colors.range).attr('stroke-width', 1.5).attr('stroke-linecap', 'round');
+
+  before ??= week.kg;
+  const barTop = Math.min(y(week.kg), y(before)), barBottom = Math.max(y(week.kg), y(before));
+  const growth = Math.max(0, CHANGE_MIN_HEIGHT - (barBottom - barTop)) / 2;
+  const left = Math.round(x - COLUMN_WIDTH / 2 + CHANGE_INSET), right = Math.round(x + COLUMN_WIDTH / 2 - CHANGE_INSET);
+  const rectTop = Math.round(barTop - growth), rectBottom = Math.round(barBottom + growth);
+  svg.append('rect').attr('x', left).attr('width', right - left).attr('y', rectTop).attr('height', rectBottom - rectTop).attr('fill', colors.bar);
+  const isUp = week.kg >= before;
+  svg.append('rect').attr('x', left).attr('width', right - left).attr('y', isUp ? rectTop : rectBottom - EDGE_HEIGHT)
+    .attr('height', EDGE_HEIGHT).attr('fill', colors.full);
+  if (week.kg != before && barBottom - barTop >= ARROW_ROOM) drawArrow(svg, x, barTop, barBottom, isUp, colors.full);
+
+  const textBottom = Math.min(Math.round(top), rectTop) - VALUE_GAP;
+  text(svg, x, textBottom, week.kg.toFixed(1), TEXT_SIZE, colors.full, 'middle');
+  return { top: textBottom - TEXT_HEIGHT, bottom: Math.max(Math.round(bottom), rectBottom) };
+}
+
+// This week's change in the first corner that keeps clear of the columns
+function drawChange(svg, week, before, spans, colorsOf) {
+  if (week.kg == null || before == null) return;
+  const tenths = Math.round(week.kg * 10) - Math.round(before * 10);
+  const label = `${tenths > 0 ? '+' : tenths < 0 ? '-' : ''}${(Math.abs(tenths) / 10).toFixed(1)} kg`;
+  const probe = text(svg, 0, 0, label, CHANGE_SIZE, 'none', 'start');
+  const width = probe.node().getComputedTextLength();
+  probe.remove();
+  const top = PADDING, bottom = HEIGHT - AXIS_HEIGHT - VALUE_GAP;
+  for (const isRight of [true, false]) {
+    const left = isRight ? WIDTH - PADDING - width : PADDING;
+    for (const baseline of [top + CHANGE_TEXT_HEIGHT, bottom]) {
+      if (!hasRoom(left, left + width, baseline - CHANGE_TEXT_HEIGHT, baseline, spans)) continue;
+      text(svg, left, baseline, label, CHANGE_SIZE, colorsOf(week.kg, before).full, 'start');
+      return;
+    }
+  }
+}
+
+function hasRoom(left, right, top, bottom, spans) {
+  return spans.every((span, i) => {
+    const x = columnX(i);
+    if (!span || x + COLUMN_WIDTH / 2 < left || x - COLUMN_WIDTH / 2 > right) return true;
+    return !(span.top < bottom + VALUE_GAP && span.bottom > top - VALUE_GAP);
+  });
+}
+
+function drawArrow(svg, x, top, bottom, isUp, color) {
+  const middle = (top + bottom) / 2, tip = middle + (isUp ? -ARROW_HEIGHT : ARROW_HEIGHT) / 2, ends = middle + (isUp ? ARROW_HEIGHT : -ARROW_HEIGHT) / 2;
+  svg.append('path').attr('d', `M${x - ARROW_WIDTH / 2},${ends} L${x},${tip} L${x + ARROW_WIDTH / 2},${ends}`)
+    .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+}
+
+function columnX(week) { return PADDING + (WEEKS - 1 - week) * (COLUMN_WIDTH + COLUMN_GAP) + COLUMN_WIDTH / 2; }
+
+function scaleOf(weeks, earlier) {
+  const all = weeks.flatMap(w => w.days).concat(earlier ?? []);
+  return d3.scaleLinear().domain([Math.floor(d3.min(all) / SCALE_STEP) * SCALE_STEP, (Math.floor(d3.max(all) / SCALE_STEP) + 1) * SCALE_STEP])
+    .range([HEIGHT - AXIS_HEIGHT - VALUE_GAP, PADDING + TEXT_HEIGHT + VALUE_GAP]);
+}
+
+function text(parent, x, y, content, size, color, anchor) {
+  return parent.append('text').attr('x', x).attr('y', y).attr('font-size', size).attr('fill', color).attr('text-anchor', anchor).text(content);
+}
+
+// MARK: Ramp
+
+// The full colors from -0.5 kg to +0.5 kg on top, the faded bar's under them
+function drawRamp(svg, palette) {
+  const steps = 60, width = 324 / steps;
+  for (let i = 0; i < steps; i++) {
+    const colors = palette(-1 + 2 * (i + 0.5) / steps);
+    svg.append('rect').attr('x', i * width).attr('width', width + 0.5).attr('height', 14).attr('fill', colors.full);
+    svg.append('rect').attr('x', i * width).attr('y', 14).attr('width', width + 0.5).attr('height', 14).attr('fill', colors.bar);
+  }
+}
+
+// MARK: Data
+
+function weeksOf(weights) {
+  return [weights.current_week, ...weights.past_weeks].map(week => ({
+    label: `W${isoWeek(new Date(`${week.week_start_date}T12:00:00`))}`,
+    kg: week.average_weight_kg,
+    days: week.days.map(d => d.weight_kg).filter(kg => kg != null),
+  }));
+}
+
+function isoWeek(date) {
+  const thursday = new Date(date); thursday.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+  const firstThursday = new Date(thursday.getFullYear(), 0, 4);
+  return 1 + Math.round(((thursday - firstThursday) / 86400000 - 3 + (firstThursday.getDay() + 6) % 7) / 7);
+}
+
+// MARK: Page
+
+if (typeof WEIGHTS == 'undefined') {
+  document.getElementById('source').textContent = 'No weights yet: run python3 tools/weight_data.py.';
+} else {
+  document.getElementById('source').textContent = 'Your weigh-ins from Foodmark. Refresh with python3 tools/weight_data.py.';
+  const all = weeksOf(WEIGHTS), weeks = all.slice(0, WEEKS), earlier = all[WEEKS]?.kg ?? null;
+  for (const [title, palette] of SKETCHES) {
+    const figure = d3.select('.variations').append('figure');
+    const glass = figure.append('div').attr('class', 'device').append('div').attr('class', 'glass');
+    drawSlide(glass.append('div').attr('class', 'screen').append('svg').attr('viewBox', `0 0 ${WIDTH} ${HEIGHT}`), weeks, earlier, palette);
+    glass.append('div').attr('class', 'buttons').html('<span></span><span></span><span></span>');
+    drawRamp(figure.append('svg').attr('class', 'ramp').attr('viewBox', '0 0 324 28').attr('preserveAspectRatio', 'none'), palette);
+    figure.append('figcaption').text(title);
+  }
+}
+</script>
+</body>
+</html>
