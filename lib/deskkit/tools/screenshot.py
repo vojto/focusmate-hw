@@ -7,7 +7,7 @@ simulator runs without a window or sound, so nothing pops up.
 
 Usage: uv run --with pyserial --with pillow python lib/deskkit/tools/screenshot.py <commands> <out.png> [port|sim]
 Each letter of <commands> is sent in turn, then the screen is captured. Use "-" to only capture.
-Without a port it takes the first USB serial port.
+Without a port it takes the first USB serial port. Run it from the app's folder.
 """
 import glob
 import os
@@ -21,7 +21,7 @@ from PIL import Image
 
 BAUD = 460800
 PORTS = "/dev/cu.usb*"  # usbserial-* for a USB-serial bridge (Core2), usbmodem* for native USB
-SCALE = 2
+SMALL_SCREEN = 480  # screens up to this wide are saved at twice their size, to be readable
 SIMULATOR = ".pio/build/simulator/program"
 SIMULATOR_STARTUP_S = 5  # long enough for the first fetches
 
@@ -107,5 +107,6 @@ port.close()
 if len(pixels) != size:
     sys.exit(f"got {len(pixels)} bytes, expected {size}")
 image = Image.frombytes("RGB", (width, height), pixels)
-image.resize((width * SCALE, height * SCALE), Image.NEAREST).save(out)
+scale = 2 if width <= SMALL_SCREEN else 1
+image.resize((width * scale, height * scale), Image.NEAREST).save(out)
 print(out)

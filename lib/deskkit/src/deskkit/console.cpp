@@ -1,10 +1,10 @@
 #include "console.h"
+#include <vector>
 #include "display.h"
 #include "network.h"
 #include "platform/platform.h"
 
 #define MAX_COMMANDS 26
-#define MAX_SCREEN_WIDTH 320
 
 namespace deskkit {
 
@@ -50,14 +50,14 @@ static void reply(const char *text) { platform::writeSerial((const uint8_t *)tex
 
 // Read back from the panel, so it is what is really on the screen
 static void sendScreenshot() {
-  static uint8_t row[MAX_SCREEN_WIDTH * 3];
-  int width = min((int)M5.Display.width(), MAX_SCREEN_WIDTH), height = M5.Display.height();
+  int width = M5.Display.width(), height = M5.Display.height();
+  std::vector<uint8_t> row(width * 3);
   char header[24];
   snprintf(header, sizeof(header), "SHOT %d %d\n", width, height);
   reply(header);
   for (int y = 0; y < height; y++) {
-    M5.Display.readRectRGB(0, y, width, 1, row);
-    platform::writeSerial(row, width * 3);
+    M5.Display.readRectRGB(0, y, width, 1, row.data());
+    platform::writeSerial(row.data(), row.size());
   }
 }
 

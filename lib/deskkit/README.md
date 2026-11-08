@@ -2,11 +2,11 @@
 
 Building blocks for small, always-on desk displays on M5Stack devices, and a simulator that runs them in a window on a Mac with their real data.
 
-It lives in `lib/` of the first app that uses it (focusmate-hw), where PlatformIO finds it as a local library. It holds nothing about any one app, so it can move to a repo of its own and be pulled in with `lib_deps`.
+It lives in `lib/` of the desk displays repo, next to the apps in `apps/`, which find it through `lib_dir = ../../lib`. It holds nothing about any one app, so it can move to a repo of its own and be pulled in with `lib_deps`.
 
 ## Three ideas
 
-**Device**: what the app runs on. A device is a config file in `boards/`, like `core2.ini`. It has a section for the real device (`[core2]`) and one for the device in the simulator (`[core2_simulator]`). M5Unified already handles the hardware differences (screen, touch, buttons, speaker), so a new device is mostly a new ini file.
+**Device**: what the app runs on. A device is a config file in `boards/`: `core2.ini` (M5Stack Core2) and `tab5.ini` (M5Stack Tab5). Each has a section for the real device (`[core2]`) and one for the device in the simulator (`[core2_simulator]`). M5Unified already handles the hardware differences (screen, touch, buttons, speaker), so a new device is mostly a new ini file.
 
 **Platform**: how the code runs: on an ESP32, or on the desktop. Only Wi-Fi, background tasks, web requests and the serial port differ, and they all sit behind `src/deskkit/platform/platform.h`:
 
@@ -23,7 +23,7 @@ Each `.cpp` compiles only on its own platform (`#ifdef ESP_PLATFORM`). Everythin
 
 | Header | What it gives |
 | --- | --- |
-| `deskkit/app.h` | `begin(config)` for Wi-Fi, clock, screen and console; `update()`; `wasTapped()` (touch, or the main button) |
+| `deskkit/app.h` | `begin(config)` for Wi-Fi, clock, screen (landscape unless `isPortrait`) and console; `update()`; `wasTapped()` (touch, or the main button) |
 | `deskkit/display.h` | `frame`, drawn a whole screen at a time and redrawn only when its key changes; `drawText`, `drawIcon`, `setBrightness` |
 | `deskkit/theme.h` | the shared colors |
 | `deskkit/color.h` | `blend`, `gradient` in RGB or OKLCH, `Oklch` |
@@ -40,9 +40,10 @@ Each `.cpp` compiles only on its own platform (`#ifdef ESP_PLATFORM`). Everythin
 ## Starting an app
 
 ```ini
-; platformio.ini
+; apps/<name>/platformio.ini
 [platformio]
-extra_configs = lib/deskkit/boards/*.ini
+lib_dir = ../../lib
+extra_configs = ../../lib/deskkit/boards/*.ini
 
 [env:core2]
 extends = core2
@@ -80,8 +81,12 @@ A click is a tap, and sound plays through the Mac. Keys 1-6 resize the window. W
 
 ## Tools
 
-- `tools/screenshot.py <commands> <out.png> [port|sim]` sends debug commands and saves the screen as a PNG, from the device over USB or from the simulator. The simulator runs without a window.
+- `tools/screenshot.py <commands> <out.png> [port|sim]`, run from the app's folder, sends debug commands and saves the screen as a PNG, from the device over USB or from the simulator. The simulator runs without a window.
 - `tools/icons.py <sketch.html> <icons.h>` turns the SVGs in an HTML sketch into `Icon`s.
+
+## Adding a device
+
+Write `boards/<device>.ini` with a `[<device>]` section (platform, board, `lib_deps = ${deskkit.lib_deps}`) and a `[<device>_simulator]` section extending `deskkit_desktop` with `-DM5GFX_BOARD=board_<M5GFX's name>`. M5GFX's `boards.hpp` lists the names; its SDL panel knows each board's screen size.
 
 ## Rules
 
