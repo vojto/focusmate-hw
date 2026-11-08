@@ -7,8 +7,6 @@
  * starts when Wi-Fi gets its address and then repeats every hour by itself.
  */
 
-// Europe/Bratislava, including daylight saving time changes
-#define TIME_ZONE "CET-1CEST,M3.5.0,M10.5.0/3"
 #define TIME_SERVER "pool.ntp.org"
 // The clock starts at 1970 and jumps past this (September 2020) once synced
 #define SYNCED_AFTER 1600000000

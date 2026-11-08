@@ -32,7 +32,7 @@ int drawText(const String &text, int x, int y, const TextStyle &style, lgfx::tex
   frame.setTextSize(1);
   frame.setTextColor(style.color);
   frame.setTextDatum(datum);
-  return frame.drawString(text, x, y);
+  return frame.drawString(text.c_str(), x, y);
 }
 
 void drawIcon(const uint8_t *icon, int left, int top, uint32_t color) {

@@ -65,7 +65,7 @@ void showCountdown(int32_t seconds, BlockPosition block) {
   frame.setTextSize(2);
   frame.setTextColor(COUNTDOWN_GREEN);
   frame.setTextDatum(middle_center);
-  frame.drawString(time, CENTER_X, CENTER_Y);
+  frame.drawString(time.c_str(), CENTER_X, CENTER_Y);
   drawText("Session in", CORNER_LEFT, CORNER_BASELINE, CORNER_TEXT, baseline_left);
   drawBlockPosition(block);
   pushFrame();

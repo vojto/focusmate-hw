@@ -121,7 +121,7 @@ static void drawChange(const Weight &weight, const Span spans[]) {
   int tenths = (weight.weeklyGrams[0] + 50) / 100 - (gramsBefore(weight, 0) + 50) / 100;
   String text = (tenths > 0 ? "+" : tenths < 0 ? "-" : "") + kilograms(abs(tenths) * 100) + " kg";
   frame.setFont(CHANGE_FONT);
-  int width = frame.textWidth(text);
+  int width = frame.textWidth(text.c_str());
   int top = PADDING, bottom = frame.height() - AXIS_HEIGHT - VALUE_GAP;
   for (bool isRight : {true, false}) {
     int left = isRight ? frame.width() - PADDING - width : PADDING;

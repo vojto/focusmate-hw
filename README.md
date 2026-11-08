@@ -65,6 +65,23 @@ The first argument is a string of commands sent before the capture: `p` pie, `b`
 
 Flash the normal build again when you're done.
 
+## Simulator on a Mac
+
+Without the device, the same firmware runs in a window on the Mac, with real data from the APIs in `src/secrets.h`. A click is a tap, and sound plays through the Mac.
+
+```sh
+brew install sdl2
+pio run -e native && .pio/build/native/program
+```
+
+The debug commands above work too: type a letter and Enter in the terminal. For a screenshot, give `sim` as the port and the script starts and closes the simulator by itself:
+
+```sh
+uv run --with pyserial --with pillow python tools/screenshot.py p tools/out/pie.png sim
+```
+
+The simulator's stand-ins for the Arduino core, Wi-Fi and HTTPS are in `simulator/`.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
