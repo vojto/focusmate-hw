@@ -1,44 +1,26 @@
-#ifdef DEBUG_TOOLS
 #include "debug.h"
-#include <M5Unified.h>
-#include "network.h"
-#include "sessions.h"
-#include "slides.h"
+#include <deskkit/console.h>
+#include "data/sessions.h"
+#include "screens/slides.h"
 
 /*
- * Lets tools/screenshot.py drive the device over serial, so the drawing can be
- * checked from the computer. One-letter commands put a fake session on screen
- * or send the screen's pixels back. A real fetch replaces the fake session
+ * Each command fakes a session relative to now. A real fetch replaces it
  * within a minute.
  */
 
-#define BAUD 460800
-
 static void fakeSession(int32_t secondsUntilStart, int32_t seconds);
 static void fakeBlock(int32_t secondsUntilThird);
-static void sendScreenshot();
 
-void debugSetup() { Serial.begin(BAUD); }
-
-void debugLoop() {
-  if (!Serial.available()) return;
-  char command = Serial.read();
-  if (!isTimeSynced()) {
-    Serial.println("WAIT");
-    return;
-  }
-  if (command == 'p') fakeSession(-18 * 60, 50 * 60);                // pie, 32 of 50 minutes left
-  else if (command == 'q') fakeSession(-74 * 60, 75 * 60);           // pie, last minute of 75
-  else if (command == 'b') fakeBlock(-18 * 60);                      // pie, third of four sessions in a row
-  else if (command == 'd') fakeBlock(7 * 60 + 42);                   // countdown to the third of four
-  else if (command == 'c') fakeSession(7 * 60 + 42, 50 * 60);        // countdown
-  else if (command == 'w') fakeSession(63, 25 * 60);                 // warning chime in 3s, start in 63s
-  else if (command == 'n') fakeSession(2 * 3600 + 23 * 60, 50 * 60); // clock with a next session
-  else if (command == 'e') setSessions(nullptr, 0);                  // clock, nothing booked
-  else if (command == 't') nextSlide();                              // the next slide, like a tap
-  else if (command == 's') return sendScreenshot();
-  else return;
-  Serial.printf("OK %c\n", command);
+void addDebugCommands() {
+  deskkit::addCommand('p', [] { fakeSession(-18 * 60, 50 * 60); });                // pie, 32 of 50 minutes left
+  deskkit::addCommand('q', [] { fakeSession(-74 * 60, 75 * 60); });                // pie, last minute of 75
+  deskkit::addCommand('b', [] { fakeBlock(-18 * 60); });                           // pie, third of four sessions in a row
+  deskkit::addCommand('d', [] { fakeBlock(7 * 60 + 42); });                        // countdown to the third of four
+  deskkit::addCommand('c', [] { fakeSession(7 * 60 + 42, 50 * 60); });             // countdown
+  deskkit::addCommand('w', [] { fakeSession(63, 25 * 60); });                      // warning chime in 3s, start in 63s
+  deskkit::addCommand('n', [] { fakeSession(2 * 3600 + 23 * 60, 50 * 60); });      // slides with a later session
+  deskkit::addCommand('e', [] { setSessions(nullptr, 0); });                       // slides, nothing booked
+  deskkit::addCommand('t', [] { slideShow.next(); });                              // the next slide, like a tap
 }
 
 static void fakeSession(int32_t secondsUntilStart, int32_t seconds) {
@@ -53,14 +35,3 @@ static void fakeBlock(int32_t secondsUntilThird) {
   for (int i = 0; i < 4; i++) block[i] = {firstStart + i * 3600, 50 * 60};
   setSessions(block, 4);
 }
-
-// Sends "SHOT <width> <height>" and then the screen as rows of R, G, B bytes
-static void sendScreenshot() {
-  static uint8_t row[320 * 3];
-  Serial.printf("SHOT %d %d\n", (int)M5.Display.width(), (int)M5.Display.height());
-  for (int y = 0; y < M5.Display.height(); y++) {
-    M5.Display.readRectRGB(0, y, M5.Display.width(), 1, row);
-    Serial.write(row, M5.Display.width() * 3);
-  }
-}
-#endif

@@ -22,7 +22,7 @@ cp src/secrets.example.h src/secrets.h
 
 Fill in your 2.4 GHz Wi-Fi name and password, your Focusmate API key (Focusmate settings page), your Moonlite API token (Moonlite settings page) and your Foodmark weights API token. `src/secrets.h` is ignored by git.
 
-The time zone is set to Europe/Bratislava in `TIME_ZONE` at the top of `src/network.cpp`; change it to your own [POSIX time zone string](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv).
+The time zone is set to Europe/Bratislava in `CONFIG` at the top of `src/main.cpp`; change it to your own [POSIX time zone string](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv).
 
 Plug in the Core2 and flash it:
 
@@ -42,12 +42,12 @@ pio run -t upload
 
 ## Changing the dashboard
 
-`tools/sketch/dashboard.html` is a sketch of the dashboard to open in a browser: the 320x240 screen scaled up, in the device's colors, with fields to try other values. Work out a change there first, then make it in `src/screens.cpp`.
+`tools/sketch/dashboard.html` is a sketch of the dashboard to open in a browser: the 320x240 screen scaled up, in the device's colors, with fields to try other values. Work out a change there first, then make it in `src/screens/slide_dashboard.cpp`.
 
 The icons live in the sketch as SVGs. After changing one, turn them into the bitmaps the firmware draws:
 
 ```sh
-uv run --with resvg-py --with pillow python tools/icons.py
+uv run --with resvg-py --with pillow python lib/deskkit/tools/icons.py tools/sketch/dashboard.html src/icons.h
 ```
 
 It renders each icon at 26 pixels and writes its coverage to `src/icons.h`, which the firmware blends onto the screen in the icon's color.
@@ -58,7 +58,7 @@ The `debug` build adds serial commands that put test sessions on screen and send
 
 ```sh
 pio run -e debug -t upload
-uv run --with pyserial --with pillow python tools/screenshot.py p tools/out/pie.png /dev/cu.usbserial-XXXX
+uv run --with pyserial --with pillow python lib/deskkit/tools/screenshot.py p tools/out/pie.png
 ```
 
 The first argument is a string of commands sent before the capture: `p` pie, `b` pie as the third of four sessions in a row, `q` pie in its last minute, `c` countdown, `d` countdown to the third of four sessions in a row, `w` a session starting in 63 seconds (to hear the chimes), `n` dashboard with a later session, `e` dashboard with nothing booked, `-` capture only. A test session lasts until the next real fetch, at most a minute.
@@ -71,16 +71,20 @@ Without the device, the same firmware runs in a window on the Mac, with real dat
 
 ```sh
 brew install sdl2
-pio run -e native && .pio/build/native/program
+pio run -e simulator && .pio/build/simulator/program
 ```
 
-The debug commands above work too: type a letter and Enter in the terminal. For a screenshot, give `sim` as the port and the script starts and closes the simulator by itself:
+The debug commands above work too: type a letter and Enter in the terminal. For a screenshot, give `sim` as the port. The script starts the simulator without a window, takes the picture and closes it:
 
 ```sh
-uv run --with pyserial --with pillow python tools/screenshot.py p tools/out/pie.png sim
+uv run --with pyserial --with pillow python lib/deskkit/tools/screenshot.py p tools/out/pie.png sim
 ```
 
-The simulator's stand-ins for the Arduino core, Wi-Fi and HTTPS are in `simulator/`.
+
+## Code layout
+
+- `src/`: the app. `main.cpp` picks the screen and plays the sounds, `data/` fetches sessions, health and weight, and `screens/` draws the pie, the countdown and the slides.
+- `lib/deskkit/`: what isn't about Focusmate, kept apart so other desk display apps can share it: devices, the simulator, drawing, fetching and the tools. See [its README](lib/deskkit/README.md).
 
 ## License
 

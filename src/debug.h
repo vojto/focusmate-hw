@@ -1,14 +1,8 @@
 #pragma once
 
 /*
- * Development tools that exist only in the `debug` environment; in the normal
- * build both functions do nothing. See debug.cpp and tools/screenshot.py.
+ * The app's debug commands, which put fake states on screen for screenshots
+ * (see deskkit/console.h). They run only in builds with DEBUG_TOOLS.
  */
 
-#ifdef DEBUG_TOOLS
-void debugSetup();
-void debugLoop();
-#else
-inline void debugSetup() {}
-inline void debugLoop() {}
-#endif
+void addDebugCommands();

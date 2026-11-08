@@ -1,0 +1,11 @@
+{
+  "name": "deskkit",
+  "version": "0.1.0",
+  "description": "Building blocks for small always-on desk displays on M5Stack devices, and a simulator that runs them in a window on the computer.",
+  "keywords": ["m5stack", "m5unified", "display", "simulator"],
+  "license": "MIT",
+  "dependencies": [
+    { "name": "M5Unified", "owner": "m5stack" },
+    { "name": "ArduinoJson", "owner": "bblanchon", "version": "^7" }
+  ]
+}

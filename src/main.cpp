@@ -1,12 +1,16 @@
+#include <Arduino.h>
 #include <M5Unified.h>
+#include <deskkit/app.h>
+#include <deskkit/display.h>
+#include <deskkit/network.h>
+#include <deskkit/sound.h>
+#include "data/health.h"
+#include "data/sessions.h"
+#include "data/weight.h"
 #include "debug.h"
-#include "display.h"
-#include "health.h"
-#include "network.h"
-#include "screens.h"
-#include "sessions.h"
-#include "slides.h"
-#include "weight.h"
+#include "screens/session.h"
+#include "screens/slides.h"
+#include "secrets.h"
 
 /*
  * Focusmate session display for an M5Stack Core2. The loop looks at the
@@ -15,6 +19,8 @@
  * the slides) and when to chime and tick. Taps go through the slides, and
  * around a session the session's own screen takes a turn among them.
  */
+
+using namespace deskkit;
 
 #define COUNTDOWN_S 600     // a session starting within this gets the countdown
 #define WARNING_S 60        // the first chime plays this long before the start
@@ -34,39 +40,34 @@
 #define TAP_HZ 2000         // the click that confirms a tap
 #define TAP_MS 15
 
+// Europe/Bratislava, including daylight saving time changes
+const Config CONFIG = {WIFI_SSID, WIFI_PASSWORD, "CET-1CEST,M3.5.0,M10.5.0/3"};
+
 static bool isShowingSlides(bool isSessionNear);
-static void setBrightness(bool isSessionNear, time_t now);
+static void updateBrightness(bool isSessionNear, time_t now);
 static void playChimes(const Session &session, time_t now);
 static void playTick(const Session &session, time_t now);
-static void playNotes(std::initializer_list<int> frequencies);
 
 void setup() {
-  auto cfg = M5.config();
-  // Otherwise the clock starts from whatever the Core2's clock chip holds
-  cfg.internal_rtc = false;
-  M5.begin(cfg);
+  begin(CONFIG);
   M5.Speaker.setVolume(VOLUME);
   M5.Speaker.setChannelVolume(TICK_CHANNEL, TICK_VOLUME);
-
-  startDisplay();
-  startNetwork();
   startFetchingSessions();
   startFetchingHealth();
   startFetchingWeight();
-  debugSetup();
+  addDebugCommands();
 }
 
 void loop() {
-  M5.update();
-  debugLoop();
+  update();
   time_t now = time(nullptr);
   Session session = currentSession(now);
   // Before the drawing, which takes a while when the pie moves
   playTick(session, now);
 
   bool isSessionNear = session.isRunning(now) || session.isStartingWithin(COUNTDOWN_S, now);
-  setBrightness(isSessionNear, now);
-  if (isShowingSlides(isSessionNear)) showSlides(now, fetchProblem());
+  updateBrightness(isSessionNear, now);
+  if (isShowingSlides(isSessionNear)) slideShow.show(now, fetchProblem());
   else if (session.isRunning(now)) showPie(session.usedMinutes(now), session.minutes(), blockPosition(session), now);
   else showCountdown(session.start - now, blockPosition(session));
 
@@ -80,27 +81,23 @@ void loop() {
 static bool isShowingSlides(bool isSessionNear) {
   static bool isPeeking = false;
   static uint32_t tappedAt = 0;
-  if (M5.Touch.getDetail().wasPressed()) {
+  if (wasTapped()) {
     M5.Speaker.tone(TAP_HZ, TAP_MS);
     tappedAt = millis();
     if (isSessionNear && !isPeeking) isPeeking = true;
-    else if (isSessionNear && isLastSlide()) isPeeking = false;
-    else nextSlide();
+    else if (isSessionNear && slideShow.isLast()) isPeeking = false;
+    else slideShow.next();
   }
   if (!isSessionNear || millis() - tappedAt >= PEEK_MS) isPeeking = false;
   return !isSessionNear || isPeeking;
 }
 
 // Dim at night, unless a session is near; full before the clock is set
-static void setBrightness(bool isSessionNear, time_t now) {
-  static int shown = -1;
+static void updateBrightness(bool isSessionNear, time_t now) {
   struct tm local;
   localtime_r(&now, &local);
   bool isNight = isTimeSynced() && (local.tm_hour >= NIGHT_START_HOUR || local.tm_hour < NIGHT_END_HOUR);
-  int brightness = isNight && !isSessionNear ? NIGHT_BRIGHTNESS : BRIGHTNESS;
-  if (brightness == shown) return;
-  shown = brightness;
-  M5.Display.setBrightness(brightness);
+  setBrightness(isNight && !isSessionNear ? NIGHT_BRIGHTNESS : BRIGHTNESS);
 }
 
 // Start chimes and an end warning, each once per session
@@ -130,12 +127,4 @@ static void playTick(const Session &session, time_t now) {
   if (!session.isRunning(now) || now == tickedAt) return;
   tickedAt = now;
   M5.Speaker.tone(TICK_HZ, TICK_MS, TICK_CHANNEL);
-}
-
-// Frequencies in Hz
-static void playNotes(std::initializer_list<int> frequencies) {
-  for (int frequency : frequencies) {
-    M5.Speaker.tone(frequency, 140);
-    delay(160);
-  }
 }

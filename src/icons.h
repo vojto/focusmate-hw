@@ -1,15 +1,12 @@
 #pragma once
-#include <stdint.h>
+#include <deskkit/icon.h>
 
 /*
- * The dashboard icons, made by tools/icons.py from the SVGs in
- * tools/sketch/dashboard.html; rerun it after changing them. Each icon is
- * 26x26 bytes of coverage, 0-255, rows top to bottom.
+ * Made by lib/deskkit/tools/icons.py from the SVGs in dashboard.html; rerun it
+ * after changing them. Each icon is 26x26 pixels.
  */
 
-#define ICON_SIZE 26
-
-const uint8_t ICON_CALENDAR[] = {
+const uint8_t ICON_CALENDAR_COVERAGE[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,  32, 191,  96,   0,   0,   0,   0,   0,   0,  96, 191,  32,   0,   0,   0,   0,   0,   0,   0,
@@ -37,8 +34,9 @@ const uint8_t ICON_CALENDAR[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 };
+const deskkit::Icon ICON_CALENDAR = {26, ICON_CALENDAR_COVERAGE};
 
-const uint8_t ICON_CLOCK[] = {
+const uint8_t ICON_CLOCK_COVERAGE[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,  63, 143, 191, 191, 191, 191, 143,  63,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -66,8 +64,9 @@ const uint8_t ICON_CLOCK[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 };
+const deskkit::Icon ICON_CLOCK = {26, ICON_CLOCK_COVERAGE};
 
-const uint8_t ICON_STEPS[] = {
+const uint8_t ICON_STEPS_COVERAGE[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -95,8 +94,9 @@ const uint8_t ICON_STEPS[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 };
+const deskkit::Icon ICON_STEPS = {26, ICON_STEPS_COVERAGE};
 
-const uint8_t ICON_SLEEP[] = {
+const uint8_t ICON_SLEEP_COVERAGE[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -124,8 +124,9 @@ const uint8_t ICON_SLEEP[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 };
+const deskkit::Icon ICON_SLEEP = {26, ICON_SLEEP_COVERAGE};
 
-const uint8_t ICON_HRV[] = {
+const uint8_t ICON_HRV_COVERAGE[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -153,8 +154,9 @@ const uint8_t ICON_HRV[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 };
+const deskkit::Icon ICON_HRV = {26, ICON_HRV_COVERAGE};
 
-const uint8_t ICON_SKULL[] = {
+const uint8_t ICON_SKULL_COVERAGE[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  63,  63,  63,  63,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -182,8 +184,9 @@ const uint8_t ICON_SKULL[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 };
+const deskkit::Icon ICON_SKULL = {26, ICON_SKULL_COVERAGE};
 
-const uint8_t ICON_RHR[] = {
+const uint8_t ICON_RHR_COVERAGE[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -211,3 +214,4 @@ const uint8_t ICON_RHR[] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 };
+const deskkit::Icon ICON_RHR = {26, ICON_RHR_COVERAGE};
