@@ -1,4 +1,4 @@
-#include "session.h"
+#include "focusmate_screens.h"
 #include <deskkit/color.h>
 #include <deskkit/display.h>
 #include <deskkit/timetext.h>
@@ -6,9 +6,9 @@
 #include "icons.h"
 
 /*
- * Draws the countdown and pie screens into the frame (display.h). The pie is
- * drawn several times too big into its own canvas and shrunk onto the frame,
- * which smooths its edges.
+ * Draws the Focusmate widget's countdown and pie into the frame (display.h).
+ * The pie is drawn several times too big into its own canvas and shrunk onto
+ * the frame, which smooths its edges.
  */
 
 using namespace deskkit;
@@ -52,6 +52,8 @@ const int PIE_COLOR_COUNT = sizeof(PIE_COLORS) / sizeof(PIE_COLORS[0]);
 
 const TextStyle CORNER_TEXT = {&fonts::FreeSans12pt7b, TEXT_GRAY};
 
+static void drawCountdown(int32_t seconds, BlockPosition block);
+static void drawPie(int usedMinutes, int totalMinutes, BlockPosition block, time_t now);
 static String blockKey(BlockPosition block);
 static void drawTimeLeft(int minutes);
 static void drawBlockPosition(BlockPosition block);
@@ -65,25 +67,31 @@ static M5Canvas pieCanvas;
 
 // MARK: Screens
 
-void showCountdown(int32_t seconds, BlockPosition block) {
-  String time = minutesAndSeconds(seconds);
-  if (!isNewFrame("countdown " + time + " " + blockKey(block))) return;
+String sessionScreenKey(const Session &session, time_t now) {
+  String block = blockKey(blockPosition(session));
+  if (!session.isRunning(now)) return "countdown " + minutesAndSeconds(session.start - now) + " " + block;
+  return "pie " + String(session.usedMinutes(now)) + "/" + String(session.minutes()) + " " + block + " " + ageText(now);
+}
+
+void drawSessionScreen(const Session &session, time_t now) {
+  if (session.isRunning(now)) drawPie(session.usedMinutes(now), session.minutes(), blockPosition(session), now);
+  else drawCountdown(session.start - now, blockPosition(session));
+}
+
+static void drawCountdown(int32_t seconds, BlockPosition block) {
   frame.setFont(&fonts::Font7);
   frame.setTextSize(2);
   frame.setTextColor(COUNTDOWN_GREEN);
   frame.setTextDatum(middle_center);
-  frame.drawString(time.c_str(), CENTER_X, CENTER_Y);
+  frame.drawString(minutesAndSeconds(seconds).c_str(), CENTER_X, CENTER_Y);
   drawText("Session in", CORNER_LEFT, CORNER_BASELINE, CORNER_TEXT, baseline_left);
   drawBlockPosition(block);
-  pushFrame();
 }
 
 // The used-up part grows clockwise from 12 o'clock, like on a Time Timer. Its
 // edge always points at the tick of the minute that is running, which has the
 // pie's color. The color goes from green to red over the session.
-void showPie(int usedMinutes, int totalMinutes, BlockPosition block, time_t now) {
-  String age = ageText(now);
-  if (!isNewFrame("pie " + String(usedMinutes) + "/" + String(totalMinutes) + " " + blockKey(block) + " " + age)) return;
+static void drawPie(int usedMinutes, int totalMinutes, BlockPosition block, time_t now) {
   float minuteDegrees = 360.0f / totalMinutes;
   uint32_t color = pieColor(usedMinutes, totalMinutes);
   clearPieCanvas();
@@ -94,11 +102,10 @@ void showPie(int usedMinutes, int totalMinutes, BlockPosition block, time_t now)
   }
   // Shrinking averages the canvas's pixels, which is what smooths the edges
   pieCanvas.pushRotateZoomWithAA(&frame, CENTER_X, CENTER_Y, 0, 1.0f / PIE_SCALE, 1.0f / PIE_SCALE);
-  drawText(age, CORNER_LEFT, CORNER_TOP_BASELINE, CORNER_TEXT, baseline_left);
+  drawText(ageText(now), CORNER_LEFT, CORNER_TOP_BASELINE, CORNER_TEXT, baseline_left);
   drawIcon(ICON_SKULL, CORNER_RIGHT - ICON_SKULL.size, SKULL_TOP, TEXT_GRAY);
   drawTimeLeft(totalMinutes - usedMinutes);
   drawBlockPosition(block);
-  pushFrame();
 }
 
 static String blockKey(BlockPosition block) { return String(block.number) + "/" + String(block.total); }

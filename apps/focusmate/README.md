@@ -8,7 +8,7 @@ A desk display for [Focusmate](https://www.focusmate.com) sessions on an M5Stack
 - **Session starts within 10 minutes:** a countdown.
 - **Otherwise:** a dashboard, a grid with the date, the time and today's steps (6.1k), sleep (8:03), HRV and resting heart rate, each marked by an icon instead of a label. The health numbers come from [Moonlite](https://moonlite.im), which syncs them from Garmin.
 
-Tapping the screen moves to the next slide. During a session or its countdown, a tap shows the slides instead; keep tapping to go through them and back to the session, which also comes back by itself 10 seconds after the last tap.
+Tapping the screen moves to the next widget. During a session or its countdown, a tap shows the other widgets instead; keep tapping to go through them and back to the session, which also comes back by itself 10 seconds after the last tap.
 
 The speaker plays two rising notes one minute before a session and three notes when it starts, and ticks quietly every second while it runs. Two descending notes at the same volume sound one minute before it ends.
 
@@ -17,10 +17,10 @@ The speaker plays two rising notes one minute before a session and three notes w
 Install [PlatformIO](https://platformio.org). The commands below run in this folder, `apps/focusmate`. Create your secrets file:
 
 ```sh
-cp src/secrets.example.h src/secrets.h
+cp include/secrets.example.h include/secrets.h
 ```
 
-Fill in your 2.4 GHz Wi-Fi name and password, your Focusmate API key (Focusmate settings page), your Moonlite API token (Moonlite settings page) and your Foodmark weights API token. `src/secrets.h` is ignored by git.
+Fill in your 2.4 GHz Wi-Fi name and password, your Focusmate API key (Focusmate settings page), your Moonlite API token (Moonlite settings page) and your Foodmark weights API token. `include/secrets.h` is ignored by git.
 
 The time zone is set to Europe/Bratislava in `CONFIG` at the top of `src/main.cpp`; change it to your own [POSIX time zone string](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv).
 
@@ -34,7 +34,7 @@ pio run -t upload
 
 - A background task asks `GET /v1/sessions` for the next 24 hours once a minute. A session you book or cancel shows up within a minute.
 - Another task asks Moonlite's `GET /api/v1/stats/today` every 5 minutes for the health numbers. A number Moonlite doesn't have yet shows as `--`.
-- A third task asks Foodmark's `GET /external/weights` every 5 minutes for today's weight and the weekly averages. The weight slide shows this week and the seven before as bars of half-kilo segments, green for the lightest week shown to red for the heaviest, with today's weigh-in after this week's average.
+- A third task asks Foodmark's `GET /external/weights` every 5 minutes for today's weight and the weekly averages. The weight widget shows this week and the seven before as bars of half-kilo segments, green for the lightest week shown to red for the heaviest, with today's weigh-in after this week's average.
 - The pie and the countdown run off the device's clock, which is synced from the internet, so they keep going between requests.
 - The pie and its ticks are drawn at twice their size into an off-screen canvas in the Core2's PSRAM and shrunk onto the screen, which smooths their edges.
 - The dashboard draws straight onto the screen, at full brightness all the time.
@@ -42,15 +42,15 @@ pio run -t upload
 
 ## Changing the dashboard
 
-`tools/sketch/dashboard.html` is a sketch of the dashboard to open in a browser: the 320x240 screen scaled up, in the device's colors, with fields to try other values. Work out a change there first, then make it in `src/screens/slide_dashboard.cpp`.
+`tools/sketch/dashboard.html` is a sketch of the dashboard to open in a browser: the 320x240 screen scaled up, in the device's colors, with fields to try other values. Work out a change there first, then make it in `../../lib/widgets/src/widgets/dashboard.cpp`.
 
 The icons live in the sketch as SVGs. After changing one, turn them into the bitmaps the firmware draws:
 
 ```sh
-uv run --with resvg-py --with pillow python ../../lib/deskkit/tools/icons.py tools/sketch/dashboard.html src/icons.h
+uv run --with resvg-py --with pillow python ../../lib/deskkit/tools/icons.py tools/sketch/dashboard.html ../../lib/widgets/src/widgets/icons.h
 ```
 
-It renders each icon at 26 pixels and writes its coverage to `src/icons.h`, which the firmware blends onto the screen in the icon's color.
+It renders each icon at 26 pixels and writes its coverage to `lib/widgets/src/widgets/icons.h`, which the firmware blends onto the screen in the icon's color.
 
 ## Screenshots from the device
 
@@ -67,7 +67,7 @@ Flash the normal build again when you're done.
 
 ## Simulator on a Mac
 
-Without the device, the same firmware runs in a window on the Mac, with real data from the APIs in `src/secrets.h`. A click is a tap, and sound plays through the Mac.
+Without the device, the same firmware runs in a window on the Mac, with real data from the APIs in `include/secrets.h`. A click is a tap, and sound plays through the Mac.
 
 ```sh
 brew install sdl2
@@ -83,7 +83,7 @@ uv run --with pyserial --with pillow python ../../lib/deskkit/tools/screenshot.p
 
 ## Code layout
 
-- `src/`: the app. `main.cpp` picks the screen and plays the sounds, `data/` fetches sessions, health and weight, and `screens/` draws the pie, the countdown and the slides.
+- `src/`: the app. `main.cpp` lists the widgets and dims the screen at night. The widgets themselves (the pie and countdown, the dashboard, sleep, weight) and their data are in `../../lib/widgets`, shared with the other apps.
 - `../../lib/deskkit/`: what isn't about Focusmate, shared with the repo's other apps: devices, the simulator, drawing, fetching and the tools. See [its README](../../lib/deskkit/README.md).
 
 ## License

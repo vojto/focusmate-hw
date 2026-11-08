@@ -20,10 +20,12 @@ struct Fetch {
   uint32_t intervalMs;
   uint32_t retryMs;                   // after a failed fetch
   bool (*read)(JsonDocument &json);   // keeps what it needs; false if the JSON is unusable
-  volatile bool hasFailed;            // the last fetch; leave it out when filling in the rest
+  volatile bool hasFailed;            // the last fetch; leave this and the rest out when filling it in
+  bool hasStarted;
 };
 
-// The task keeps using the fetch, so it must be static
+// The task keeps using the fetch, so it must be static. Starts it only once,
+// however many widgets ask.
 void startFetching(Fetch &fetch);
 
 // A lock that the main loop and a fetch task can share

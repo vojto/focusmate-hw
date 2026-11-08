@@ -5,11 +5,12 @@ namespace deskkit {
 M5Canvas frame(&M5.Display);
 static String shownKey;
 
-// A full-screen frame is too big for the normal heap (~150KB on a Core2), so
-// it lives in PSRAM
+// The frame is too big for the normal heap (~150KB on a Core2), so it lives
+// in PSRAM. Around it the screen stays black.
 void startDisplay() {
+  M5.Display.fillScreen(BACKGROUND);
   frame.setPsram(true);
-  frame.createSprite(M5.Display.width(), M5.Display.height());
+  frame.createSprite(FRAME_WIDTH, FRAME_HEIGHT);
 }
 
 bool isNewFrame(const String &key) {
@@ -19,7 +20,8 @@ bool isNewFrame(const String &key) {
   return true;
 }
 
-void pushFrame() { frame.pushSprite(0, 0); }
+// In the middle of the screen
+void pushFrame() { frame.pushSprite((M5.Display.width() - FRAME_WIDTH) / 2, (M5.Display.height() - FRAME_HEIGHT) / 2); }
 
 const String &shownFrame() { return shownKey; }
 

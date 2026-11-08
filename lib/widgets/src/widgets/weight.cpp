@@ -2,7 +2,7 @@
 #include <deskkit/display.h>
 #include <deskkit/timetext.h>
 #include "data/weight.h"
-#include "slides.h"
+#include "widgets.h"
 
 /*
  * The average weight of this week and the seven before it, a row each, as
@@ -48,9 +48,10 @@ static int roundedToTenth(int grams);
 static String kilograms(int grams);
 static uint32_t weightColor(int grams, int lightest, int heaviest);
 
-const Slide WEIGHT_SLIDE = {
+const Widget WEIGHT_WIDGET = {
     weightKey,
     drawWeight,
+    startFetchingWeight,
 };
 
 // Changes with the numbers and the week

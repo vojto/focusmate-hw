@@ -3,7 +3,7 @@
 #include "age.h"
 #include "data/health.h"
 #include "icons.h"
-#include "slides.h"
+#include "widgets.h"
 
 /*
  * The date, Vojto's age and today's steps, sleep, HRV and resting heart rate
@@ -30,9 +30,10 @@ const GridCell DASHBOARD[GRID_CELLS] = {
     {&ICON_RHR, RHR_RED, restingHeartRateText, "bpm"},
 };
 
-const Slide DASHBOARD_SLIDE = {
+const Widget DASHBOARD_WIDGET = {
     [](time_t now) { return gridKey(DASHBOARD, now); },
     [](time_t now) { drawGrid(DASHBOARD, now); },
+    startFetchingHealth,
 };
 
 // "950", "8.4k"

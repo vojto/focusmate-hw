@@ -17,20 +17,22 @@ It lives in `lib/` of the desk displays repo, next to the apps in `apps/`, which
 
 Each `.cpp` compiles only on its own platform (`#ifdef ESP_PLATFORM`). Everything else runs the same on both.
 
-**App**: the app's own `src/`, with Arduino's `setup()` and `loop()`. It calls `begin()` and `update()` and draws its screens with the building blocks below.
+**App**: the app's own `src/`, with Arduino's `setup()` and `loop()`. It calls `begin()` and `update()` and shows a list of widgets.
+
+**Widget**: one thing on the screen, drawn into a 320x240 frame (a Core2 screen; on a bigger screen it sits in the middle). A widget is a `Widget` of functions: its key, its drawing, and optionally a start, a priority and an update that runs every loop. A `Rotation` shows them one at a time: normal widgets take turns, the first urgent one takes over until it isn't urgent any more (a tap peeks at the others for 10 seconds), and hidden ones are skipped. Showing several at once on a big screen comes later.
 
 ## Building blocks
 
 | Header | What it gives |
 | --- | --- |
 | `deskkit/app.h` | `begin(config)` for Wi-Fi, clock, screen (landscape unless `isPortrait`) and console; `update()`; `wasTapped()` (touch, or the main button) |
-| `deskkit/display.h` | `frame`, drawn a whole screen at a time and redrawn only when its key changes; `drawText`, `drawIcon`, `setBrightness` |
+| `deskkit/widgets.h` | `Widget`, `Priority` (hidden, normal, urgent), `Rotation` with the notice bar |
+| `deskkit/display.h` | `frame`, one widget's 320x240, drawn whole and redrawn only when its key changes; `drawText`, `drawIcon`, `setBrightness` |
 | `deskkit/theme.h` | the shared colors |
 | `deskkit/color.h` | `blend`, `gradient` in RGB or OKLCH, `Oklch` |
 | `deskkit/icon.h` | `Icon`, made from SVGs by `tools/icons.py` |
 | `deskkit/grid.h` | a 2x3 (or 2x4) grid of values with icons and units |
-| `deskkit/slides.h` | `SlideShow`: screens that take turns, with a notice bar |
-| `deskkit/fetch.h` | `Fetch`: a JSON API polled in the background; `Shared<T>` to hand its data to the main loop |
+| `deskkit/fetch.h` | `Fetch`: a JSON API polled in the background, started once however many widgets ask; `Shared<T>` to hand its data to the main loop |
 | `deskkit/network.h` | `isWifiConnected`, `isTimeSynced` |
 | `deskkit/timetext.h` | "7:24", "16 Oct", "W43" |
 | `deskkit/isotime.h` | ISO 8601 times to and from seconds |
@@ -56,19 +58,30 @@ build_flags = ${core2_simulator.build_flags} -DDEBUG_TOOLS
 ```cpp
 // src/main.cpp
 #include <deskkit/app.h>
-#include <deskkit/display.h>
+#include <deskkit/widgets.h>
 
-const deskkit::Config CONFIG = {"wifi", "password", "CET-1CEST,M3.5.0,M10.5.0/3"};
+using namespace deskkit;
 
-void setup() { deskkit::begin(CONFIG); }
+const Config CONFIG = {"wifi", "password", "CET-1CEST,M3.5.0,M10.5.0/3"};
+
+const Widget HELLO = {
+    [](time_t now) { return String("hello"); },
+    [](time_t now) { drawText("Hello", 160, 120, {&fonts::FreeSans18pt7b, TEXT_WHITE}, middle_center); },
+};
+const Widget *const WIDGETS[] = {&HELLO};
+Rotation rotation(WIDGETS, 60000);
+
+void setup() { begin(CONFIG); }
 
 void loop() {
-  deskkit::update();
-  if (!deskkit::isNewFrame("hello")) return;
-  deskkit::drawText("Hello", 160, 120, {&fonts::FreeSans18pt7b, deskkit::TEXT_WHITE}, middle_center);
-  deskkit::pushFrame();
+  update();
+  if (wasTapped()) rotation.tap();
+  rotation.show(time(nullptr));
+  delay(20);
 }
 ```
+
+Real widgets live in `lib/widgets` next to deskkit.
 
 ## Simulator
 

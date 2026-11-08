@@ -5,10 +5,13 @@
 #include "theme.h"
 
 /*
- * The screen, drawn a whole frame at a time. Every screen draws into an
- * off-screen frame the size of the display and pushes it in one go, so the
- * display never shows a half-drawn frame. A screen draws only when what it
- * shows changed, which it says with a key: a string of everything on it.
+ * The screen, drawn a whole frame at a time. Every widget (widgets.h) draws
+ * into an off-screen frame and pushes it in one go, so the display never shows
+ * a half-drawn frame. A widget draws only when what it shows changed, which it
+ * says with a key: a string of everything on it.
+ *
+ * The frame is one widget's size, a Core2 screen. It fills a Core2 and sits
+ * in the middle of a bigger screen, like the Tab5's.
  */
 
 namespace deskkit {
@@ -18,7 +21,10 @@ struct TextStyle {
   uint32_t color;
 };
 
-// Where the screens draw, the size of the display
+#define FRAME_WIDTH 320
+#define FRAME_HEIGHT 240
+
+// Where the widgets draw
 extern M5Canvas frame;
 
 // Whether the frame must be drawn: true, with the frame cleared, when the key

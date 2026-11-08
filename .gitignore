@@ -1,7 +1,7 @@
 .pio/
 compile_commands.json
 .DS_Store
-**/src/secrets.h
+**/include/secrets.h
 **/tools/out/
 __pycache__/
 .cache/

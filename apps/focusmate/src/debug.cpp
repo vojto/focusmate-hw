@@ -1,12 +1,14 @@
 #include "debug.h"
 #include <deskkit/console.h>
-#include "data/sessions.h"
-#include "screens/slides.h"
+#include <deskkit/widgets.h>
+#include <widgets/data/sessions.h>
 
 /*
  * Each command fakes a session relative to now. A real fetch replaces it
  * within a minute.
  */
+
+extern deskkit::Rotation rotation;
 
 static void fakeSession(int32_t secondsUntilStart, int32_t seconds);
 static void fakeBlock(int32_t secondsUntilThird);
@@ -20,7 +22,7 @@ void addDebugCommands() {
   deskkit::addCommand('w', [] { fakeSession(63, 25 * 60); });                      // warning chime in 3s, start in 63s
   deskkit::addCommand('n', [] { fakeSession(2 * 3600 + 23 * 60, 50 * 60); });      // slides with a later session
   deskkit::addCommand('e', [] { setSessions(nullptr, 0); });                       // slides, nothing booked
-  deskkit::addCommand('t', [] { slideShow.next(); });                              // the next slide, like a tap
+  deskkit::addCommand('t', [] { rotation.tap(); });                                // a tap: the next widget
 }
 
 static void fakeSession(int32_t secondsUntilStart, int32_t seconds) {

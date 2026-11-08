@@ -9,7 +9,11 @@ namespace deskkit {
 static void fetchLoop(void *parameter);
 static bool fetchOnce(Fetch &fetch);
 
-void startFetching(Fetch &fetch) { platform::startTask(fetchLoop, &fetch, fetch.name); }
+void startFetching(Fetch &fetch) {
+  if (fetch.hasStarted) return;
+  fetch.hasStarted = true;
+  platform::startTask(fetchLoop, &fetch, fetch.name);
+}
 
 // Waits for the clock too: sources ask for data around today
 static void fetchLoop(void *parameter) {

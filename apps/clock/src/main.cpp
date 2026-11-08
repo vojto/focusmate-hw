@@ -1,71 +1,41 @@
 #include <Arduino.h>
+#include <M5Unified.h>
 #include <deskkit/app.h>
-#include <deskkit/display.h>
-#include <deskkit/network.h>
+#include <deskkit/console.h>
+#include <widgets/widgets.h>
 #include "secrets.h"
 
 /*
- * A desk clock for the M5Stack Tab5: the time, large, and the date under it.
- * It is the first app on the Tab5, a starting point that shows the screen,
- * Wi-Fi and the internet clock all work; the time shows only once the clock
- * is synced.
+ * The desk display on the M5Stack Tab5. For now it shows one widget at a time
+ * in the middle of the screen, like a Core2 would: the clock, then sleep,
+ * taking turns every minute or on a tap. Showing several widgets at once on
+ * the big screen comes next.
  */
 
 using namespace deskkit;
 
-#define TIME_SIZE 5             // Font7 is 48px tall, so 240px
-#define TIME_RISE 40            // the time sits this far above the middle
-#define DATE_GAP 70             // from the time's bottom to the date's middle
-#define LOOP_MS 100
-
-const uint32_t TIME_GREEN = 0x5DCAA5;
-const lgfx::IFont *const DATE_FONT = &fonts::FreeSans24pt7b;
+#define WIDGET_MS 60000     // how long a widget stays
+#define LOOP_MS 20
+#define TAP_HZ 2000         // the click that confirms a tap
+#define TAP_MS 15
 
 // Europe/Bratislava, including daylight saving time changes
 const Config CONFIG = {WIFI_SSID, WIFI_PASSWORD, "CET-1CEST,M3.5.0,M10.5.0/3"};
 
-static void showClock(time_t now);
-static String timeText(const struct tm &local);
-static String dateText(const struct tm &local);
+static const Widget *const WIDGETS[] = {&CLOCK_WIDGET, &SLEEP_WIDGET};
+static Rotation rotation(WIDGETS, WIDGET_MS);
 
-void setup() { begin(CONFIG); }
+void setup() {
+  begin(CONFIG);
+  addCommand('t', [] { rotation.tap(); });  // a tap: the next widget
+}
 
 void loop() {
   update();
-  showClock(time(nullptr));
+  if (wasTapped()) {
+    M5.Speaker.tone(TAP_HZ, TAP_MS);
+    rotation.tap();
+  }
+  rotation.show(time(nullptr));
   delay(LOOP_MS);
-}
-
-// Redrawn when the minute changes
-static void showClock(time_t now) {
-  struct tm local;
-  localtime_r(&now, &local);
-  String time = isTimeSynced() ? timeText(local) : "--:--";
-  String date = isTimeSynced() ? dateText(local) : "";
-  if (!isNewFrame(time + " " + date)) return;
-  int middle = frame.height() / 2 - TIME_RISE;
-  frame.setFont(&fonts::Font7);
-  frame.setTextSize(TIME_SIZE);
-  frame.setTextColor(TIME_GREEN);
-  frame.setTextDatum(middle_center);
-  frame.drawString(time.c_str(), frame.width() / 2, middle);
-  int dateMiddle = middle + frame.fontHeight() / 2 + DATE_GAP;
-  drawText(date, frame.width() / 2, dateMiddle, {DATE_FONT, TEXT_GRAY}, middle_center);
-  pushFrame();
-}
-
-// "9:05", "14:30"
-static String timeText(const struct tm &local) {
-  char text[8];
-  snprintf(text, sizeof(text), "%d:%02d", local.tm_hour, local.tm_min);
-  return text;
-}
-
-// "Sunday, 8 November"
-static String dateText(const struct tm &local) {
-  char weekday[16], month[16], text[40];
-  strftime(weekday, sizeof(weekday), "%A", &local);
-  strftime(month, sizeof(month), "%B", &local);
-  snprintf(text, sizeof(text), "%s, %d %s", weekday, local.tm_mday, month);
-  return text;
 }

@@ -1,7 +1,7 @@
 #include <deskkit/grid.h>
 #include <deskkit/timetext.h>
 #include "data/health.h"
-#include "slides.h"
+#include "widgets.h"
 
 /*
  * Last night, then the average night of this week so far and of the six weeks
@@ -22,9 +22,10 @@ static String sleepKey(time_t now);
 static void drawSleep(time_t now);
 static uint32_t sleepColor(int minutes);
 
-const Slide SLEEP_SLIDE = {
+const Widget SLEEP_WIDGET = {
     sleepKey,
     drawSleep,
+    startFetchingHealth,
 };
 
 // Changes with the numbers and the week

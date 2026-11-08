@@ -11,7 +11,7 @@ It's the first app on the Tab5, and a starting point for what comes next.
 From this folder:
 
 ```sh
-cp src/secrets.example.h src/secrets.h   # your Wi-Fi name and password
+cp include/secrets.example.h include/secrets.h   # Wi-Fi and the widgets' keys
 pio run -t upload                        # flash the Tab5
 pio run -e simulator && .pio/build/simulator/program
 ```

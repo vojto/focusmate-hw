@@ -1,0 +1,16 @@
+{
+  "name": "widgets",
+  "version": "0.1.0",
+  "description": "Vojto's desk display widgets, shared by the apps: Focusmate sessions, health, weight, a clock. Built on deskkit.",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "deskkit"
+    }
+  ],
+  "build": {
+    "flags": [
+      "-I$PROJECT_INCLUDE_DIR"
+    ]
+  }
+}

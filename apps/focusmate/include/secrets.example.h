@@ -1,8 +1,10 @@
 #pragma once
 
 /*
- * Template for src/secrets.h, which main.cpp includes and git ignores.
- * Copy this file to src/secrets.h and fill in your own values.
+ * Template for include/secrets.h, which the app and the widgets (lib/widgets)
+ * include and git ignores. Copy this file to include/secrets.h and fill in
+ * your own values. Every widget's keys are needed, even for widgets the app
+ * doesn't show, because the whole widgets library is built.
  */
 
 // The ESP32 only joins 2.4 GHz networks

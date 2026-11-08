@@ -2,7 +2,7 @@
 #include <deskkit/display.h>
 #include <deskkit/timetext.h>
 #include "data/weight.h"
-#include "slides.h"
+#include "widgets.h"
 
 /*
  * A column per week, this week on the right: a faded line from the week's
@@ -78,9 +78,10 @@ static int gramsBefore(const Weight &weight, int week);
 static void drawArrow(float x, float top, float bottom, bool isUp, uint32_t color);
 static String kilograms(int grams);
 
-const Slide WEIGHT_RANGE_SLIDE = {
+const Widget WEIGHT_RANGE_WIDGET = {
     rangeKey,
     drawRanges,
+    startFetchingWeight,
 };
 
 // Changes with the numbers and the week
