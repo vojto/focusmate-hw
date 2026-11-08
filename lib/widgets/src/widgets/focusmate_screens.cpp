@@ -32,7 +32,7 @@ const int PIE_COLOR_COUNT = sizeof(PIE_COLORS) / sizeof(PIE_COLORS[0]);
 #define TICK_DEGREES 0.6f       // how wide a tick is, about 1px
 #define BOLD_TICK_DEGREES 1.6f  // about 3px
 #define BOLD_TICK_MINUTES 5
-#define PIE_SCALE 2             // how many times too big the pie is drawn; a redraw takes ~0.6s at 2, ~1s at 3
+#define PIE_SCALE 1             // how many times too big the pie is drawn; 1 is not smoothed, a redraw takes ~0.6s at 2, ~1s at 3
 #define PIE_CANVAS (240 * PIE_SCALE)
 
 // The corners of the pie and countdown screens: Vojto's age top left and a
