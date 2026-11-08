@@ -7,6 +7,7 @@ the desktop simulator built (`pio run -e native`), which it starts and closes.
 Usage: uv run --with pyserial --with pillow python tools/screenshot.py <commands> <out.png> [port|sim]
 Each letter of <commands> is sent in turn, then the screen is captured. Use "-" to only capture.
 """
+import os
 import subprocess
 import sys
 import threading
@@ -26,7 +27,9 @@ class Simulator:
     """Stands in for the serial port: runs the simulator and talks to it over stdin and stdout."""
 
     def __init__(self):
-        self.process = subprocess.Popen([SIMULATOR], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        # No window or sound, so it doesn't pop up over what you're doing
+        quiet = {**os.environ, "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"}
+        self.process = subprocess.Popen([SIMULATOR], stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=quiet)
         self.buffer = bytearray()
         self.lock = threading.Lock()
         threading.Thread(target=self._collect, daemon=True).start()
